@@ -388,7 +388,7 @@ async function logView(mount, wid, mode, id) {
   const isTodo = p => eligible(p.r, p.i) && state[order[p.i]].sets[p.r].reps === '';
   const same = (a, b) => a && b && a.r === b.r && a.i === b.i;
   const after = (a, b) => a.r > b.r || (a.r === b.r && a.i > b.i);
-  const rounds = () => Math.max(0, ...members.map(m => state[m.id].sets.length));
+  const rounds = () => Math.max(0, ...members.filter(m => !state[m.id].absent).map(m => state[m.id].sets.length));
   function slots() {
     const list = [];
     for (let r = 0; r < rounds(); r++) for (let i = 0; i < order.length; i++) if (eligible(r, i)) list.push({ r, i });
@@ -470,6 +470,12 @@ async function logView(mount, wid, mode, id) {
     const todo = hasTodo();
     const cardOrder = order ? order.map(mid => memberById.get(mid)).filter(Boolean) : members;
     body.innerHTML = `
+      <div class="card stepper">
+        <span class="grow">Sets for everyone</span>
+        <button class="btn small" data-sets="-1" aria-label="One set fewer">−</button>
+        <b>${rounds()}</b>
+        <button class="btn small" data-sets="1" aria-label="One set more">+</button>
+      </div>
       ${todo
         ? `<button class="btn primary big" data-g="start">▶ ${anyFilled ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
         : anyFilled ? '<div class="notice row"><span class="grow">All sets done 💪</span><button class="btn small" data-g="round">+ Another round</button></div>' : ''}
@@ -606,7 +612,16 @@ async function logView(mount, wid, mode, id) {
     const d = b.dataset;
     if (d.g) return guidedAction(d.g);
     if (b.hasAttribute('data-remove')) return removeExercise();
-    if (d.absent) {
+    if (d.sets) {
+      // Give every present member the same number of sets; filled-in sets are never removed
+      const n = Math.max(1, rounds() + +d.sets);
+      for (const m of members) {
+        const sets = state[m.id].sets;
+        if (state[m.id].absent) continue;
+        while (sets.length < n) sets.push({ reps: '', weight: '' });
+        while (sets.length > n && sets[sets.length - 1].reps === '') sets.pop();
+      }
+    } else if (d.absent) {
       const s = state[d.absent];
       s.absent = !s.absent;
       if (!s.absent && !s.sets.length) s.sets.push({ reps: '', weight: '' });
