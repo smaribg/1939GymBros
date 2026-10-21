@@ -192,3 +192,16 @@ dialog {
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 20px; }
+
+.save-status {
+  display: block;
+  min-height: 18px;
+  margin: -10px 0 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}

@@ -112,6 +112,7 @@ function requireAuth() {
 
 const STALE = Symbol('stale');
 let routeId = 0;
+let leaveHook = null; // set by a view that must finish saving before the next page loads
 
 const routes = [
   [/^$/, home],
@@ -123,6 +124,13 @@ const routes = [
 
 async function router() {
   const id = ++routeId;
+  const leaving = leaveHook;
+  leaveHook = null;
+  if (leaving) {
+    app.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
+    await leaving();
+    if (id !== routeId) return;
+  }
   const path = location.hash.replace(/^#\/?/, '');
   // Views call mount() once their data is loaded; a stale view (user navigated away meanwhile) is dropped
   const mount = html => {
@@ -367,14 +375,14 @@ async function logView(mount, wid, mode, id) {
   const memberById = new Map(members.map(m => [m.id, m]));
   const toInput = s => ({ reps: String(s.reps ?? ''), weight: String(s.weight ?? '') });
 
-  // Unsaved input (and where the guided flow is) survives reloads and navigating back
-  const draftKey = `draft2:${wid}:${weId || 'new-' + exercise.id}`;
+  // Local copy of the input (and where the guided flow is), so blank sets and the guided position survive too
+  let draftKey = `draft2:${wid}:${weId || 'new-' + exercise.id}`;
   const saved = draft.load(draftKey) || {};
   const state = saved.members || {};
   for (const m of members) {
     if (state[m.id]) continue;
     const ex = existingBy.get(m.id);
-    state[m.id] = ex
+    state[m.id] = ex && (ex.absent || ex.sets.length)
       ? { absent: ex.absent, sets: ex.sets.map(toInput) }
       : { absent: false, sets: Array.from({ length: last.get(m.id)?.sets.length || 3 }, () => ({ reps: '', weight: '' })) };
   }
@@ -382,7 +390,51 @@ async function logView(mount, wid, mode, id) {
   let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
   if (order) order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
   let cursor = order ? saved.cursor || null : null; // { r: set index, i: index in order } while guided
-  const persist = () => draft.save(draftKey, { members: state, order, cursor });
+  const persist = () => {
+    draft.save(draftKey, { members: state, order, cursor });
+    scheduleSave();
+  };
+
+  // ----- autosave: every change goes to the database shortly after it's made -----
+
+  let saveTimer = null, dirty = false, saving = Promise.resolve();
+  function scheduleSave() {
+    dirty = true;
+    setStatus('Saving…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 800);
+  }
+  function saveNow() {
+    clearTimeout(saveTimer);
+    if (!dirty) return saving;
+    dirty = false;
+    saving = saving.then(writeToDb).catch(err => {
+      dirty = true;
+      console.error(err);
+      setStatus('Not saved, tap to retry', true);
+    });
+    return saving;
+  }
+  async function writeToDb() {
+    if (!await requireAuth()) { dirty = true; setStatus('Not saved, tap to unlock', true); return; }
+    if (!weId) {
+      weId = check(await sb.from('workout_exercises').insert({ workout_id: wid, exercise_id: exercise.id }).select('id').single()).id;
+      // From now on this is an existing exercise in the workout
+      history.replaceState(null, '', `#/w/${wid}/edit/${weId}`);
+      draft.clear(draftKey);
+      draftKey = `draft2:${wid}:${weId}`;
+      draft.save(draftKey, { members: state, order, cursor });
+    }
+    const rows = members.map(m => {
+      const s = state[m.id];
+      const sets = s.absent ? [] : s.sets
+        .map(x => ({ reps: num(x.reps), weight: num(x.weight) }))
+        .filter(x => x.reps != null);
+      return { workout_exercise_id: weId, member_id: m.id, absent: s.absent, sets };
+    });
+    check(await sb.from('entries').upsert(rows, { onConflict: 'workout_exercise_id,member_id' }));
+    if (!dirty) setStatus('Saved ✓');
+  }
 
   const eligible = (r, i) => { const s = state[order[i]]; return !!s && !s.absent && r < s.sets.length; };
   const isTodo = p => eligible(p.r, p.i) && state[order[p.i]].sets[p.r].reps === '';
@@ -404,6 +456,7 @@ async function logView(mount, wid, mode, id) {
   const v = mount(`
     <a class="back" href="#/w/${wid}">← Workout</a>
     <h1>${esc(exercise.name)}</h1>
+    <button class="save-status" data-status></button>
     <div class="photo-block" data-photo></div>
     <div data-body></div>
     <div class="sticky-bottom" data-bottom></div>
@@ -411,6 +464,14 @@ async function logView(mount, wid, mode, id) {
   const photoEl = v.querySelector('[data-photo]');
   const body = v.querySelector('[data-body]');
   const bottom = v.querySelector('[data-bottom]');
+  const statusEl = v.querySelector('[data-status]');
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text;
+    statusEl.classList.toggle('error-text', !!isError);
+  }
+  statusEl.addEventListener('click', () => { if (dirty) saveNow(); });
+  leaveHook = saveNow; // the router waits for this before showing the next page
 
   // ----- photo -----
 
@@ -485,7 +546,7 @@ async function logView(mount, wid, mode, id) {
       ${cardOrder.map(cardHtml).join('')}
       ${weId ? '<button class="btn small danger" data-remove>Remove from workout</button>' : ''}
     `;
-    bottom.innerHTML = `<button class="btn ${todo && !anyFilled ? '' : 'primary'} big" data-save>Finish exercise</button>`;
+    bottom.innerHTML = `<button class="btn ${todo && !anyFilled ? '' : 'primary'} big" data-done>Done ✓<small>Back to the workout</small></button>`;
   }
 
   // ----- guided mode: one member and one set at a time -----
@@ -643,36 +704,18 @@ async function logView(mount, wid, mode, id) {
   });
 
   bottom.addEventListener('click', act(async e => {
-    const saveBtn = e.target.closest('[data-save]');
-    if (!saveBtn) return;
-    const rows = members.map(m => {
-      const s = state[m.id];
-      const sets = s.absent ? [] : s.sets
-        .map(x => ({ reps: num(x.reps), weight: num(x.weight) }))
-        .filter(x => x.reps != null);
-      return { member_id: m.id, absent: s.absent || !sets.length, sets }; // no sets entered counts as not here
-    });
-    if (rows.every(r => r.absent) && !confirm('No sets entered for anyone. Save anyway?')) return;
-    if (!await requireAuth()) return;
-
-    saveBtn.disabled = true;
-    try {
-      if (!weId) {
-        weId = check(await sb.from('workout_exercises').insert({ workout_id: wid, exercise_id: exercise.id }).select('id').single()).id;
-      }
-      check(await sb.from('entries').upsert(
-        rows.map(r => ({ ...r, workout_exercise_id: weId })),
-        { onConflict: 'workout_exercise_id,member_id' },
-      ));
-    } finally {
-      saveBtn.disabled = false;
-    }
+    if (!e.target.closest('[data-done]')) return;
+    await saveNow();
+    if (dirty) return; // save failed; the status line says so
     draft.clear(draftKey);
     go(`#/w/${wid}`);
   }));
 
   const removeExercise = act(async () => {
     if (!confirm(`Remove ${exercise.name} from this workout?`) || !await requireAuth()) return;
+    clearTimeout(saveTimer);
+    dirty = false;
+    await saving;
     check(await sb.from('workout_exercises').delete().eq('id', weId));
     draft.clear(draftKey);
     go(`#/w/${wid}`);
