@@ -433,6 +433,9 @@ async function logView(mount, wid, mode, id) {
   }));
   renderPhoto();
 
+  // Stays visible under an input so last time's value isn't lost once you type
+  const lastHint = (value, unit = '') => (value != null && value !== '' ? `<small class="hint">last: ${esc(value)}${unit}</small>` : '');
+
   // ----- list mode: every member as a card -----
 
   function cardHtml(m) {
@@ -454,8 +457,8 @@ async function logView(mount, wid, mode, id) {
         ${s.sets.map((set, i) => `
           <div class="set-row">
             <span class="set-no">${i + 1}</span>
-            <label><input inputmode="numeric" data-m="${m.id}" data-i="${i}" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(ls[i]?.reps ?? '')}"><span>reps</span></label>
-            <label><input inputmode="decimal" data-m="${m.id}" data-i="${i}" data-f="weight" value="${esc(set.weight)}" placeholder="${esc(ls[i]?.weight ?? '')}"><span>kg</span></label>
+            <label><input inputmode="numeric" data-m="${m.id}" data-i="${i}" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(ls[i]?.reps ?? '')}"><span>reps</span>${lastHint(ls[i]?.reps)}</label>
+            <label><input inputmode="decimal" data-m="${m.id}" data-i="${i}" data-f="weight" value="${esc(set.weight)}" placeholder="${esc(ls[i]?.weight ?? '')}"><span>kg</span>${lastHint(ls[i]?.weight, 'kg')}</label>
             <button class="icon" data-del="${m.id}" data-i="${i}" aria-label="Remove set">×</button>
           </div>`).join('')}
         <div class="row">
@@ -510,8 +513,8 @@ async function logView(mount, wid, mode, id) {
           : l ? `Last time: <b>${esc(fmtSets(l.sets))}</b>` : 'No previous record'}</div>
         ${today.length ? `<div class="last">Today: <b>${esc(today.map(fmtSet).join(' · '))}</b></div>` : ''}
         <form class="step-inputs" data-step>
-          <label><input inputmode="numeric" enterkeyhint="next" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(lastSet?.reps ?? '')}" autocomplete="off"><span>reps</span></label>
-          <label><input inputmode="decimal" enterkeyhint="next" data-f="weight" value="${esc(weight)}" autocomplete="off"><span>kg</span></label>
+          <label><input inputmode="numeric" enterkeyhint="next" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(lastSet?.reps ?? '')}" autocomplete="off"><span>reps</span>${lastHint(lastSet?.reps)}</label>
+          <label><input inputmode="decimal" enterkeyhint="next" data-f="weight" value="${esc(weight)}" autocomplete="off"><span>kg</span>${lastHint(lastSet?.weight, 'kg')}</label>
         </form>
         <button class="btn primary big" data-g="next">Next →<small>${next ? `${esc(memberById.get(order[next.i]).name)} · set ${next.r + 1}` : 'Last one'}</small></button>
         <div class="row">
