@@ -13,9 +13,10 @@
   --accent: #f7834a; /* orange */
   --accent-text: #ff9b5f;
   --accent-ink: #1f0f06;
-  --kg: #f39661;
-  --kg-bg: #301e18;
-  --kg-border: #4a2b1f;
+  --kg: #b4c98a;
+  --kg-label: #a7b777;
+  --kg-bg: #1e2419;
+  --kg-border: #34402a;
   --green: #8aa87b;
   --danger: #ef7d68;
   color-scheme: dark;
@@ -314,7 +315,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .set-row.done .prev { color: #b9c7b4; }
 .set-row.done input { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
 /* Same color code as the sets tables: the kg column is orange */
-.set-head > :nth-child(3) { color: var(--accent-text); font-weight: 700; }
+.set-head > :nth-child(3) { color: var(--kg-label); font-weight: 700; }
 .set-head > :nth-child(4) { color: var(--text); font-weight: 700; }
 .set-row:not(.done) > :nth-child(3) { color: var(--kg); font-weight: 600; }
 .set-row:not(.done) > input:nth-child(3), .set-row:not(.done) > .val:nth-child(3) { background: var(--kg-bg); border-color: var(--kg-border); }
@@ -361,9 +362,9 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ex-summary {
   border-color: transparent;
   background:
-    radial-gradient(85% 60% at 0% 0%, rgba(247, 131, 74, 0.15), transparent 100%) padding-box,
+    radial-gradient(240px 150px at 0 0, rgba(247, 131, 74, 0.09), transparent 100%) padding-box,
     linear-gradient(180deg, #191919, #151515) padding-box,
-    radial-gradient(70% 55% at 0% 0%, #5c3322, #262626 100%) border-box;
+    radial-gradient(200px 120px at 0 0, #4a2b1f, #262626 100%) border-box;
 }
 .ex-summary .ex-img { width: 66px; height: 66px; border-radius: 14px; border: 1px solid #3c2418; }
 .ex-summary .ex-img svg { width: 28px; height: 28px; }
@@ -391,7 +392,7 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
   text-align: left; align-self: center;
   font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
 }
-.sg-label.sg-weight { color: var(--accent-text); }
+.sg-label.sg-weight { color: var(--kg-label); }
 .sg-label.sg-reps { color: var(--text); }
 .sg-no { color: #b4b0ad; font-size: 12px; font-weight: 500; }
 .sg-val { font-size: 17px; font-weight: 700; line-height: 1; padding: 9px 0; border-radius: 8px; }
