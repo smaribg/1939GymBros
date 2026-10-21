@@ -8,10 +8,10 @@
   --text: #f6f3ef;
   --muted: #a8a29e;
   --border: #262626;
-  --cream: #e6ceb7;
+  --cream: #eed3a8; /* the poster's paper cream */
   --cream-ink: #1d1913;
-  --accent: #f7834a; /* orange */
-  --accent-text: #ff9b5f;
+  --accent: #f0622a; /* the poster's orange: accents in panels, not buttons */
+  --accent-text: #ff8656;
   --accent-ink: #1f0f06;
   /* kg: a muted slate blue, cool against the warm orange/cream */
   --kg: #9ec3e6;
@@ -31,7 +31,7 @@ body {
   margin: 0;
   min-height: 100vh;
   /* a warm glow in the top corner, like light on the plates in the reference */
-  background: radial-gradient(700px 420px at 100% 0%, rgba(247, 131, 74, 0.11), transparent 70%) no-repeat, var(--bg);
+  background: radial-gradient(700px 420px at 100% 0%, rgba(240, 98, 42, 0.11), transparent 70%) no-repeat, var(--bg);
   color: var(--text);
   font: 16px/1.4 "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -78,23 +78,23 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
   cursor: pointer;
 }
 .btn.primary, .btn.cream {
-  background: linear-gradient(180deg, #fa9159, #ee7640);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--cream);
+  border-color: var(--cream);
+  color: var(--cream-ink);
   font-weight: 600;
-  box-shadow: 0 6px 22px rgba(247, 131, 74, 0.18);
+  box-shadow: 0 6px 22px rgba(238, 211, 168, 0.12);
 }
 .btn.primary:active, .btn.cream:active { filter: brightness(0.92); }
 /* "Add exercise": dashed orange outline with a round plus */
 .btn.dashed {
   flex-direction: row; gap: 10px;
-  background: transparent; border: 1.5px dashed #8a4522; border-radius: 18px;
-  color: var(--accent-text); font-weight: 600;
+  background: transparent; border: 1.5px dashed rgba(238, 211, 168, 0.45); border-radius: 18px;
+  color: var(--cream); font-weight: 600;
 }
 .plus-dot {
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; border-radius: 50%;
-  background: var(--accent); color: var(--accent-ink); font-size: 20px; font-weight: 700; line-height: 1;
+  background: var(--cream); color: var(--cream-ink); font-size: 20px; font-weight: 700; line-height: 1;
 }
 .btn.danger { color: var(--danger); background: transparent; }
 .btn.ghost { background: transparent; }
@@ -139,7 +139,7 @@ input {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+input:focus { outline: none; border-color: var(--cream); box-shadow: 0 0 0 1px var(--cream); }
 input::placeholder { color: #66615d; }
 input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 
@@ -180,7 +180,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 }
 .list-item.row { flex-direction: row; flex-wrap: nowrap; padding: 8px 8px 8px 12px; }
 .list-item.row input { background: transparent; border-color: transparent; }
-.list-item.row input:focus { border-color: var(--accent); }
+.list-item.row input:focus { border-color: var(--cream); }
 .tag { color: var(--green); font-size: 13px; }
 
 .card {
@@ -211,7 +211,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   cursor: pointer;
 }
 /* Exercise thumbnail; without a photo it's an orange-tinted tile with a dumbbell */
-.ex-img { flex: none; width: 96px; background: #261a14 center / cover no-repeat; display: flex; align-items: center; justify-content: center; color: #c46c4a; }
+.ex-img { flex: none; width: 96px; background: #28170f center / cover no-repeat; display: flex; align-items: center; justify-content: center; color: #d65a2a; }
 .ex-info { flex: 1; min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 2px; justify-content: center; }
 .ex-title { font-size: 18px; font-weight: 600; }
 .ex-side { flex: none; display: flex; align-items: center; padding-right: 14px; }
@@ -222,8 +222,8 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--cream);
+  color: var(--cream-ink);
   font-size: 22px;
   line-height: 1;
 }
@@ -363,11 +363,11 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ex-summary {
   border-color: transparent;
   background:
-    radial-gradient(240px 150px at 0 0, rgba(247, 131, 74, 0.09), transparent 100%) padding-box,
+    radial-gradient(240px 150px at 0 0, rgba(240, 98, 42, 0.09), transparent 100%) padding-box,
     linear-gradient(180deg, #191919, #151515) padding-box,
-    radial-gradient(200px 120px at 0 0, #4a2b1f, #262626 100%) border-box;
+    radial-gradient(200px 120px at 0 0, #4d2716, #262626 100%) border-box;
 }
-.ex-summary .ex-img { width: 66px; height: 66px; border-radius: 14px; border: 1px solid #3c2418; }
+.ex-summary .ex-img { width: 66px; height: 66px; border-radius: 14px; border: 1px solid #40200f; }
 .ex-summary .ex-img svg { width: 28px; height: 28px; }
 
 /* Big dark panel holding a workout's exercises, as in the reference */
@@ -411,7 +411,7 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .step .btn.big { margin-top: 10px; }
 .set-row[data-jump] { cursor: pointer; }
 .set-row.upcoming { opacity: 0.45; }
-.set-row.current { background: rgba(247, 131, 74, 0.07); box-shadow: inset 0 0 0 2px var(--accent); }
+.set-row.current { background: rgba(240, 98, 42, 0.07); box-shadow: inset 0 0 0 2px var(--accent); }
 .set-row.current .set-no { background: var(--accent); color: var(--accent-ink); }
 .set-row.current input { min-height: 48px; font-size: 20px; }
 .set-row.current input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
@@ -527,11 +527,11 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .stat.orange {
   border-color: transparent;
   background:
-    radial-gradient(140% 120% at 0% 0%, rgba(247, 131, 74, 0.42), rgba(247, 131, 74, 0.1) 45%, transparent 78%) padding-box,
-    linear-gradient(#221a16, #1e1916) padding-box,
-    radial-gradient(130% 130% at 0% 0%, #b4592f, #3a2a22 45%, #2a2828 70%) border-box;
+    radial-gradient(140% 120% at 0% 0%, rgba(240, 98, 42, 0.42), rgba(240, 98, 42, 0.1) 45%, transparent 78%) padding-box,
+    linear-gradient(#231812, #1f1713) padding-box,
+    radial-gradient(130% 130% at 0% 0%, #b8461c, #3a261e 45%, #2a2828 70%) border-box;
 }
-.stat.orange .stat-icon { background: #3a2216; color: var(--accent); }
+.stat.orange .stat-icon { background: #3d1c0e; color: var(--accent-text); }
 .stat.blue {
   border-color: transparent;
   background:
@@ -569,8 +569,8 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   z-index: 50;
   padding: 10px 18px;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--cream);
+  color: var(--cream-ink);
   font-weight: 600;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   transform: translate(-50%, -150%);
@@ -590,8 +590,8 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   background: var(--card); color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .month span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--card2); font-size: 12px; }
-.month.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.month.on span { background: rgba(31, 15, 6, 0.18); }
+.month.on { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); font-weight: 600; }
+.month.on span { background: rgba(29, 25, 19, 0.15); }
 .list-item.past { gap: 6px; padding: 16px; }
 .past-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .past-head b { font-size: 17px; }
@@ -599,7 +599,7 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .bubbles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .bubble {
   padding: 4px 11px; border-radius: 999px; font-size: 13px; font-weight: 500;
-  background: rgba(230, 206, 183, 0.12); color: var(--cream); box-shadow: inset 0 0 0 1px rgba(230, 206, 183, 0.28);
+  background: rgba(238, 211, 168, 0.12); color: var(--cream); box-shadow: inset 0 0 0 1px rgba(238, 211, 168, 0.28);
 }
 
 /* The stats row on a workout page */
@@ -614,7 +614,7 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .progress-head .ex-img { width: 64px; height: 64px; border-radius: 12px; }
 .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--card2); margin-bottom: 6px; }
 .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
-.seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg button.on { background: var(--cream); color: var(--cream-ink); font-weight: 600; }
 .chart { display: block; width: 100%; height: auto; touch-action: pan-y; user-select: none; }
 .chart .grid { stroke: var(--border); stroke-width: 1; }
 .chart .axis { fill: var(--muted); font-size: 11px; }
