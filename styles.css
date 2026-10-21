@@ -314,11 +314,6 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .set-row.done .set-no, .set-row.done .tick { background: var(--green); color: #142012; }
 .set-row.done .prev { color: #b9c7b4; }
 .set-row.done input { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
-/* Same color code as the sets tables: the kg column is orange */
-.set-head > :nth-child(3) { color: var(--kg-label); font-weight: 700; }
-.set-head > :nth-child(4) { color: var(--text); font-weight: 700; }
-.set-row:not(.done) > :nth-child(3) { color: var(--kg); font-weight: 600; }
-.set-row:not(.done) > input:nth-child(3), .set-row:not(.done) > .val:nth-child(3) { background: var(--kg-bg); border-color: var(--kg-border); }
 
 /* ---------- guided step ---------- */
 
