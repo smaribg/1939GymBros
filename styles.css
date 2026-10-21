@@ -82,7 +82,14 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
 .btn.block { width: 100%; margin-bottom: 12px; }
 .btn:disabled { opacity: 0.45; }
 
-.back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; padding: 6px 0; font-size: 15px; }
+/* Pill-shaped with a 44px+ tap target so it's easy to hit on a phone */
+.back {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 8px 18px 8px 14px; margin-bottom: 8px;
+  border-radius: 999px; background: var(--card); border: 1px solid var(--border);
+  color: var(--text); text-decoration: none; font-size: 17px; font-weight: 500;
+}
+.back:active { background: var(--card2); }
 
 .muted { color: var(--muted); }
 .center { text-align: center; }
