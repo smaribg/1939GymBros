@@ -298,7 +298,7 @@ async function home(mount) {
   };
 
   const v = mount(`
-    <img class="hero" src="assets/logo.webp" alt="${esc(CONFIG.APP_NAME)}">
+    <img class="hero" src="assets/banner.webp" alt="${esc(CONFIG.APP_NAME)}" width="1300" height="610">
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
       ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`

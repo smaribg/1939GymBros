@@ -149,12 +149,15 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 
 /* ---------- home ---------- */
 
+/* Poster banner, as wide as the buttons below and rounded like the cards */
 .hero {
   display: block;
   width: 100%;
-  max-width: 320px; /* a square badge: much wider would push the buttons off the first screen */
-  margin: 4px auto 22px;
-  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55));
+  height: auto;
+  margin: 4px 0 16px;
+  border-radius: 20px;
+  border: 1px solid #2a2828;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
 }
 
 /* ---------- lists & cards ---------- */
