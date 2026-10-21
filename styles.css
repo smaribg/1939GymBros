@@ -153,8 +153,9 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .hero {
   display: block;
   width: 100%;
-  max-width: 440px;
-  margin: 0 auto 16px;
+  max-width: 260px; /* a square badge: wider would push the buttons off the first screen */
+  margin: 4px auto 22px;
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55));
 }
 
 /* ---------- lists & cards ---------- */
