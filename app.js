@@ -53,7 +53,11 @@ const draft = {
 // ---------- exercise photos ----------
 
 const photoUrl = path => sb.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
-const thumb = path => path ? `<img class="thumb" src="${esc(photoUrl(path))}" alt="" loading="lazy">` : '';
+const DUMBBELL = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>';
+// Left-hand photo of an exercise row, or a dumbbell when there is no photo
+const exImg = path => path
+  ? `<div class="ex-img" style="background-image:url('${esc(photoUrl(path))}')"></div>`
+  : `<div class="ex-img">${DUMBBELL}</div>`;
 
 // Phone photos are huge; shrink to a reasonable JPEG before uploading
 async function resizeImage(file, max = 1280) {
@@ -171,10 +175,11 @@ async function home(mount) {
   const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(', ') || 'No exercises';
 
   const v = mount(`
+    <img class="hero" src="assets/logo.jpg" alt="${esc(CONFIG.APP_NAME)}">
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
-      ? `<a class="btn primary big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
-      : `<button class="btn primary big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
+      ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
+      : `<button class="btn cream big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
     <a class="btn block" href="#/members">Members (${members.length})</a>
     <h2>Past workouts</h2>
     ${past.length
@@ -196,8 +201,9 @@ async function home(mount) {
 async function membersView(mount) {
   const members = check(await sb.from('members').select('id, name').eq('active', true).order('created_at'));
   const v = mount(`
-    <a class="back" href="#/">← Home</a>
+    <a class="back" href="#/">‹ Home</a>
     <h1>Members</h1>
+    <p class="sub">Everyone who trains together</p>
     <div class="list">
       ${members.map(m => `
         <div class="list-item row">
@@ -239,23 +245,42 @@ async function workoutView(mount, wid) {
     .single());
   const wes = [...w.workout_exercises].sort(byCreated);
 
+  // One row per member who was there: reps above kg for each set; absent members on one line
+  function memberRows(we) {
+    const entries = [...we.entries].sort((a, b) => byCreated(a.members, b.members));
+    const absent = entries.filter(e => e.absent).map(e => e.members.name);
+    return entries.filter(e => !e.absent).map(e => `
+      <div class="ms-row">
+        <span class="ms-name">${esc(e.members.name)}</span>
+        ${e.sets.length
+          ? `<span class="mini-sets grow">${e.sets.map(x => `<span><b>${esc(x.reps)}</b><small>${esc(x.weight ?? '–')}</small></span>`).join('')}</span><small class="muted unit">kg</small>`
+          : '<span class="muted">—</span>'}
+      </div>`).join('') + (absent.length ? `<div class="ms-row muted"><span class="ms-name">Not here</span><span>${esc(absent.join(', '))}</span></div>` : '');
+  }
+  const isDone = we => we.entries.length && we.entries.every(e => e.absent || e.sets.length);
+  const setCount = we => {
+    const n = Math.max(0, ...we.entries.map(e => e.sets.length));
+    return `${n} set${n === 1 ? '' : 's'}`;
+  };
+
   const v = mount(`
-    <a class="back" href="#/">← Home</a>
-    <h1>${w.finished_at ? 'Workout' : 'Current workout'}</h1>
-    <p class="muted">${fmtDate(w.started_at)}</p>
+    <a class="back" href="#/">‹ Home</a>
+    <h1>${w.finished_at ? 'Workout' : 'Today’s Workout'}</h1>
+    <p class="sub">${fmtDate(w.started_at)}${wes.length ? ` · ${wes.length} exercise${wes.length === 1 ? '' : 's'}` : ''}</p>
     ${wes.map(we => `
-      <div class="card">
-        <div class="card-head">
-          <div class="row nowrap">${thumb(we.exercises.photo_path)}<h3>${esc(we.exercises.name)}</h3></div>
-          <a class="btn small" href="#/w/${wid}/edit/${we.id}">Edit</a>
+      <a class="card ex-summary" href="#/w/${wid}/edit/${we.id}">
+        <div class="ex-summary-head">
+          ${exImg(we.exercises.photo_path)}
+          <div class="grow">
+            <div class="ex-title">${esc(we.exercises.name)}</div>
+            <span class="muted">${setCount(we)}</span>
+          </div>
+          <span class="check ${isDone(we) ? 'done' : ''}"></span>
         </div>
-        <table class="summary">
-          ${[...we.entries].sort((a, b) => byCreated(a.members, b.members)).map(e => `
-            <tr><td>${esc(e.members.name)}</td><td>${e.absent ? '<span class="muted">Not here</span>' : esc(fmtSets(e.sets))}</td></tr>`).join('')}
-        </table>
-      </div>`).join('') || '<p class="muted">No exercises yet.</p>'}
-    <a class="btn ${w.finished_at ? '' : 'primary big'} block" href="#/w/${wid}/pick">+ Add exercise</a>
-    ${w.finished_at ? '' : '<button class="btn block" data-finish>Finish workout</button>'}
+        ${memberRows(we)}
+      </a>`).join('') || '<p class="muted">No exercises yet.</p>'}
+    <a class="btn cream big" href="#/w/${wid}/pick">+ Add exercise</a>
+    ${w.finished_at ? '' : '<button class="btn primary block" data-finish>Finish workout</button>'}
     <button class="btn small danger" data-delete>Delete workout</button>
   `);
 
@@ -280,10 +305,14 @@ async function pickView(mount, wid) {
   const usedBy = new Map(used.map(u => [u.exercise_id, u.id]));
 
   const v = mount(`
-    <a class="back" href="#/w/${wid}">← Workout</a>
-    <h1>Pick exercise</h1>
-    <input type="search" placeholder="Search or type a new exercise" data-search autocomplete="off">
-    <div class="list" data-list style="margin-top:12px"></div>
+    <a class="back" href="#/w/${wid}">‹ Workout</a>
+    <h1>Add exercise</h1>
+    <p class="sub">Pick one you've done before, or type a new name</p>
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" placeholder="Search exercises…" data-search autocomplete="off">
+    </div>
+    <div data-list></div>
   `);
   const search = v.querySelector('[data-search]');
   const list = v.querySelector('[data-list]');
@@ -293,14 +322,20 @@ async function pickView(mount, wid) {
     const matches = exercises.filter(e => e.name.toLowerCase().includes(q.toLowerCase()));
     const exact = exercises.some(e => e.name.toLowerCase() === q.toLowerCase());
     list.innerHTML = `
-      ${q && !exact ? `<button class="list-item" data-create><b>+ Create “${esc(q)}”</b><span class="muted">New exercise</span></button>` : ''}
+      ${q && !exact ? `
+        <button class="ex-card" data-create>
+          ${exImg(null)}
+          <span class="ex-info"><span class="ex-title">“${esc(q)}”</span><span class="muted">Create new exercise</span></span>
+          <span class="ex-side"><span class="plus">+</span></span>
+        </button>` : ''}
       ${matches.map(e => `
-        <button class="list-item with-thumb" data-id="${e.id}">
-          ${thumb(e.photo_path)}
-          <span class="col">
-            <b>${esc(e.name)}</b>
-            ${usedBy.has(e.id) ? '<span class="tag">✓ Already done in this workout</span>' : ''}
+        <button class="ex-card" data-id="${e.id}">
+          ${exImg(e.photo_path)}
+          <span class="ex-info">
+            <span class="ex-title">${esc(e.name)}</span>
+            ${usedBy.has(e.id) ? '<span class="tag">✓ In this workout</span>' : ''}
           </span>
+          <span class="ex-side">${usedBy.has(e.id) ? '<span class="check done"></span>' : '<span class="plus">+</span>'}</span>
         </button>`).join('')}
       ${!q && !exercises.length ? '<p class="muted">No exercises yet. Type a name above to create one.</p>' : ''}
     `;
@@ -454,7 +489,7 @@ async function logView(mount, wid, mode, id) {
   const hasTodo = () => members.some(m => !state[m.id].absent && state[m.id].sets.some(s => s.reps === ''));
 
   const v = mount(`
-    <a class="back" href="#/w/${wid}">← Workout</a>
+    <a class="back" href="#/w/${wid}">‹ Workout</a>
     <h1>${esc(exercise.name)}</h1>
     <button class="save-status" data-status></button>
     <div class="photo-block" data-photo></div>
@@ -478,7 +513,7 @@ async function logView(mount, wid, mode, id) {
   function renderPhoto(busy) {
     photoEl.innerHTML = `
       ${exercise.photo_path ? `<img class="ex-photo" src="${esc(photoUrl(exercise.photo_path))}" alt="">` : ''}
-      <label class="btn small">${busy ? 'Uploading…' : exercise.photo_path ? '📷 Change photo' : '📷 Add photo'}
+      <label class="btn small ${exercise.photo_path ? 'on-photo' : ''}">${busy ? 'Uploading…' : exercise.photo_path ? '📷 Change' : '📷 Add photo'}
         <input type="file" accept="image/*" capture="environment" hidden ${busy ? 'disabled' : ''}>
       </label>`;
   }
@@ -515,15 +550,17 @@ async function logView(mount, wid, mode, id) {
         <div class="card-head"><h3>${esc(m.name)}</h3>
         <button class="btn small ghost" data-absent="${m.id}">Not here</button></div>
         <div class="last">${l ? `Last time (${fmtShort(l.date)}): <b>${esc(fmtSets(ls))}</b>` : 'No previous record'}</div>
+        ${s.sets.length ? '<div class="set-head"><span>Set</span><span>Reps</span><span>Weight (kg)</span><span></span></div>' : ''}
         ${s.sets.map((set, i) => `
           <div class="set-row">
             <span class="set-no">${i + 1}</span>
-            <label><input inputmode="numeric" data-m="${m.id}" data-i="${i}" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(ls[i]?.reps ?? '')}"><span>reps</span>${lastHint(ls[i]?.reps)}</label>
-            <label><input inputmode="decimal" data-m="${m.id}" data-i="${i}" data-f="weight" value="${esc(set.weight)}" placeholder="${esc(ls[i]?.weight ?? '')}"><span>kg</span>${lastHint(ls[i]?.weight, 'kg')}</label>
-            <button class="icon" data-del="${m.id}" data-i="${i}" aria-label="Remove set">×</button>
+            <label><input inputmode="numeric" data-m="${m.id}" data-i="${i}" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(ls[i]?.reps ?? 'Reps')}">${lastHint(ls[i]?.reps)}</label>
+            <label><input inputmode="decimal" data-m="${m.id}" data-i="${i}" data-f="weight" value="${esc(set.weight)}" placeholder="${esc(ls[i]?.weight ?? 'kg')}">${lastHint(ls[i]?.weight, 'kg')}</label>
+            <span class="check ${set.reps !== '' ? 'done' : ''}"></span>
           </div>`).join('')}
         <div class="row">
           <button class="btn small" data-addset="${m.id}">+ Set</button>
+          ${s.sets.length ? `<button class="btn small" data-delset="${m.id}">− Set</button>` : ''}
           ${ls.length ? `<button class="btn small" data-copy="${m.id}">Copy last time</button>` : ''}
         </div>
       </div>`;
@@ -541,12 +578,12 @@ async function logView(mount, wid, mode, id) {
         <button class="btn small" data-sets="1" aria-label="One set more">+</button>
       </div>
       ${todo
-        ? `<button class="btn primary big" data-g="start">▶ ${anyFilled ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
+        ? `<button class="btn cream big" data-g="start">▶ ${anyFilled ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
         : anyFilled ? '<div class="notice row"><span class="grow">All sets done 💪</span><button class="btn small" data-g="round">+ Another round</button></div>' : ''}
       ${cardOrder.map(cardHtml).join('')}
       ${weId ? '<button class="btn small danger" data-remove>Remove from workout</button>' : ''}
     `;
-    bottom.innerHTML = `<button class="btn ${todo && !anyFilled ? '' : 'primary'} big" data-done>Done ✓<small>Back to the workout</small></button>`;
+    bottom.innerHTML = `<button class="btn primary big" data-done>Complete exercise →</button>`;
   }
 
   // ----- guided mode: one member and one set at a time -----
@@ -659,6 +696,7 @@ async function logView(mount, wid, mode, id) {
     t.classList.remove('invalid');
     if (!t.dataset.m) return;
     state[t.dataset.m].sets[+t.dataset.i][t.dataset.f] = t.value;
+    if (t.dataset.f === 'reps') t.closest('.set-row').querySelector('.check').classList.toggle('done', t.value.trim() !== '');
     persist();
   });
 
@@ -692,8 +730,8 @@ async function logView(mount, wid, mode, id) {
     } else if (d.addset) {
       const sets = state[d.addset].sets;
       sets.push({ ...(sets[sets.length - 1] || { reps: '', weight: '' }) }); // new set starts as a copy of the previous one
-    } else if (d.del) {
-      state[d.del].sets.splice(+d.i, 1);
+    } else if (d.delset) {
+      state[d.delset].sets.pop();
     } else if (d.copy) {
       state[d.copy].sets = last.get(d.copy).sets.map(toInput);
     } else {
