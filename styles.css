@@ -228,7 +228,6 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .last { margin: 6px 0 12px; font-size: 14px; color: var(--muted); }
 .last b { color: var(--text); font-weight: 500; }
 .small { font-size: 13px; }
-.hint { display: block; margin-top: 3px; text-align: center; font-size: 12px; color: var(--muted); }
 
 /* Members who are here stand out from the page; members who aren't sit quietly at the bottom */
 .member { background: #1a1b19; border-color: #30312d; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
@@ -282,12 +281,6 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .step { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; }
 .step-meta { color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
 .step-name { font-size: 38px; font-weight: 600; line-height: 1.1; margin: 4px 0 8px; }
-.step .last { margin: 4px 0; }
-.step-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 14px; }
-.step-inputs label { position: relative; }
-.step-inputs input { min-height: 72px; font-size: 32px; font-weight: 600; text-align: center; padding: 10px 44px 10px 12px; border-radius: 14px; }
-.step-inputs label span { position: absolute; right: 12px; top: 36px; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
-.step-inputs .hint { font-size: 14px; }
 .step .btn.big { margin-bottom: 12px; }
 
 /* ---------- misc ---------- */
@@ -352,3 +345,22 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 
 .list-item .ex-img { width: 44px; height: 44px; border-radius: 10px; }
 .list-item .ex-img svg { width: 22px; height: 22px; }
+
+/* Guided step: the member's set table with the current set highlighted */
+.step .set-head { margin-top: 16px; }
+.step .set-row { margin-bottom: 8px; }
+.step .btn.big { margin-top: 10px; }
+.set-row[data-jump] { cursor: pointer; }
+.set-row.upcoming { opacity: 0.45; }
+.set-row.current { background: rgba(227, 201, 165, 0.1); box-shadow: inset 0 0 0 2px var(--cream); }
+.set-row.current .set-no { background: var(--cream); color: var(--cream-ink); }
+.set-row.current input { min-height: 48px; font-size: 20px; font-weight: 600; background: var(--input); border-color: #4a4b46; }
+.val {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border: 1px solid #3a3b37;
+  border-radius: 10px;
+}
+.set-row.done .val { border-color: transparent; background: rgba(0, 0, 0, 0.18); }

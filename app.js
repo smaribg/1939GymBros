@@ -589,9 +589,6 @@ async function logView(mount, wid, mode, id) {
   }));
   renderPhoto();
 
-  // Stays visible under an input so last time's value isn't lost once you type
-  const lastHint = (value, unit = '') => (value != null && value !== '' ? `<small class="hint">last: ${esc(value)}${unit}</small>` : '');
-
   // ----- list mode: every member as a card -----
 
   const TICK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -654,32 +651,44 @@ async function logView(mount, wid, mode, id) {
 
   // ----- guided mode: one member and one set at a time -----
 
+  // The current member's whole set table; the current set is editable, tap another set to jump to it
   function renderStep() {
     const { r, i } = cursor;
     const m = memberById.get(order[i]);
     const s = state[m.id];
-    const set = s.sets[r];
-    const l = last.get(m.id);
-    const lastSet = l?.sets[r];
-    const today = s.sets.slice(0, r).filter(x => x.done);
-    // Weight usually stays the same, so fall back to the previous set's
-    const weight = set.weight || s.sets[r - 1]?.weight || '';
+    const ls = last.get(m.id)?.sets || [];
     const inRound = slots().filter(p => p.r === r);
     const next = nextTodo(cursor);
     const isFirst = same(slots()[0], cursor);
 
+    const row = (x, j) => {
+      const cells = `<span class="set-no">${j + 1}</span><span class="prev">${ls[j] ? esc(fmtKgReps(ls[j])) : '—'}</span>`;
+      if (j === r) {
+        // Weight usually stays the same, so fall back to the previous set's
+        const weight = x.weight || s.sets[j - 1]?.weight || '';
+        return `
+          <div class="set-row current ${x.done ? 'done' : ''}" data-step>
+            ${cells}
+            <input inputmode="decimal" enterkeyhint="next" data-f="weight" value="${esc(weight)}" placeholder="kg" aria-label="Weight" autocomplete="off">
+            <input inputmode="numeric" enterkeyhint="go" data-f="reps" value="${esc(x.reps)}" placeholder="reps" aria-label="Reps" autocomplete="off">
+            <span class="tick">${TICK}</span>
+          </div>`;
+      }
+      return `
+        <div class="set-row ${x.done ? 'done' : 'upcoming'}" data-jump="${j}">
+          ${cells}
+          <span class="val">${esc(x.weight) || '–'}</span>
+          <span class="val">${esc(x.reps) || '–'}</span>
+          <span class="tick">${TICK}</span>
+        </div>`;
+    };
+
     body.innerHTML = `
       <div class="step">
-        <div class="step-meta">Set ${r + 1} · ${inRound.findIndex(p => p.i === i) + 1} of ${inRound.length}</div>
+        <div class="step-meta">Set ${r + 1} · person ${inRound.findIndex(p => p.i === i) + 1} of ${inRound.length}</div>
         <div class="step-name">${esc(m.name)}</div>
-        <div class="last">${lastSet
-          ? `Last time set ${r + 1}: <b>${esc(fmtSet(lastSet))}</b>`
-          : l ? `Last time: <b>${esc(fmtSets(l.sets))}</b>` : 'No previous record'}</div>
-        ${today.length ? `<div class="last">Today: <b>${esc(today.map(fmtSet).join(' · '))}</b></div>` : ''}
-        <form class="step-inputs" data-step>
-          <label><input inputmode="numeric" enterkeyhint="next" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(lastSet?.reps ?? '')}" autocomplete="off"><span>reps</span>${lastHint(lastSet?.reps)}</label>
-          <label><input inputmode="decimal" enterkeyhint="next" data-f="weight" value="${esc(weight)}" autocomplete="off"><span>kg</span>${lastHint(lastSet?.weight, 'kg')}</label>
-        </form>
+        <div class="set-head"><span>Set</span><span>Previous</span><span>kg</span><span>Reps</span><span>${TICK}</span></div>
+        ${s.sets.map(row).join('')}
         <button class="btn primary big" data-g="next">Next →<small>${next ? `${esc(memberById.get(order[next.i]).name)} · set ${next.r + 1}` : 'Last one'}</small></button>
         <div class="row">
           <button class="btn small" data-g="back" ${isFirst ? 'disabled' : ''}>← Back</button>
@@ -692,11 +701,10 @@ async function logView(mount, wid, mode, id) {
     bottom.innerHTML = '';
   }
 
-  function render(focusReps) {
+  function render() {
     if (cursor && !eligible(cursor.r, cursor.i)) cursor = nextTodo(cursor); // e.g. a stale saved position
     photoEl.hidden = !!cursor;
     if (cursor) renderStep(); else renderList();
-    if (focusReps && cursor) body.querySelector('[data-f="reps"]').focus();
   }
 
   // Writes the step's inputs into state (and confirms the set if asked); returns false if reps are missing
@@ -714,10 +722,9 @@ async function logView(mount, wid, mode, id) {
     cursor = to;
     if (!cursor) window.scrollTo(0, 0);
     persist();
-    render(true);
+    render();
   }
 
-  // Everything here runs synchronously inside the tap, so focusing the next input keeps the phone keyboard open
   function guidedAction(action) {
     const mid = cursor && order[cursor.i];
     if (action === 'start') {
@@ -766,15 +773,25 @@ async function logView(mount, wid, mode, id) {
     persist();
   });
 
-  // Enter on the keyboard: reps -> weight -> next
+  // Enter on the keyboard: kg -> reps -> next
   body.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || !e.target.closest('[data-step]')) return;
     e.preventDefault();
-    if (e.target.dataset.f === 'reps') body.querySelector('[data-step] [data-f="weight"]').focus();
+    if (e.target.dataset.f === 'weight') body.querySelector('[data-step] [data-f="reps"]').focus();
     else guidedAction('next');
   });
 
+  // Values are usually prefilled, so tapping a box selects it and typing replaces it
+  body.addEventListener('focusin', e => {
+    if (e.target.matches('.set-row input')) e.target.select();
+  });
+
   body.addEventListener('click', e => {
+    const jump = e.target.closest('[data-jump]');
+    if (jump && cursor) {
+      commitStep();
+      return move({ r: +jump.dataset.jump, i: cursor.i });
+    }
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
