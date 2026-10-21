@@ -13,12 +13,12 @@
   --accent: #f7834a; /* orange */
   --accent-text: #ff9b5f;
   --accent-ink: #1f0f06;
-  --kg: #b4c98a;
-  --kg-label: #a7b777;
-  --kg-bg: #1e2419;
-  --kg-border: #34402a;
+  /* kg: a muted slate blue, cool against the warm orange/cream */
+  --kg: #9ec3e6;
+  --kg-bg: #16202b;
+  --kg-border: #2a3e53;
   --green: #8aa87b;
-  --danger: #ef7d68;
+  --danger: #f2616d; /* clearly redder than the orange accent */
   color-scheme: dark;
 }
 
@@ -86,9 +86,6 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
   box-shadow: 0 6px 22px rgba(247, 131, 74, 0.18);
 }
 .btn.primary:active, .btn.cream:active { filter: brightness(0.92); }
-/* Cream main button on the home screen (keeps the start screen calm) */
-.btn.light { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); font-weight: 600; }
-.btn.light:active { filter: brightness(0.92); }
 /* "Add exercise": dashed orange outline with a round plus */
 .btn.dashed {
   flex-direction: row; gap: 10px;
@@ -108,7 +105,8 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
 .btn.big small { font-size: 13px; }
 .btn.block { width: 100%; margin-bottom: 12px; }
 /* Home screen's Members / Exercises: stand out from the dark background */
-.btn.tile { min-height: 56px; background: #1c1c1c; border-color: rgba(230, 206, 183, 0.3); color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; }
+.btn.tile { flex-direction: row; gap: 8px; min-height: 56px; background: #1c1c1c; border-color: #343130; color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; }
+.btn.tile svg { width: 20px; height: 20px; color: var(--muted); }
 .btn.tile:active { filter: brightness(1.15); }
 .btn:disabled { opacity: 0.45; }
 
@@ -312,7 +310,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   cursor: pointer;
 }
 /* A finished set: the whole row turns green */
-.set-row.done { background: rgba(127, 155, 121, 0.28); }
+.set-row.done { background: rgba(138, 168, 123, 0.26); }
 .set-row.done .set-no, .set-row.done .tick { background: var(--green); color: #142012; }
 .set-row.done .prev { color: #b9c7b4; }
 .set-row.done input { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
@@ -376,29 +374,24 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ms-row { margin-top: 10px; padding: 12px 10px; background: #1a1a1a; border: 1px solid #242424; border-radius: 16px; }
 .ms-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ms-name { font-weight: 600; font-size: 17px; }
-/* Sets table: a column per set, kg above reps, so values line up. Color code: KG orange, REPS cream */
+/* Sets table: one column per set (number, kg, ×reps). Color code: kg blue, reps cream */
 .set-grid {
   display: grid;
-  grid-template-columns: 40px repeat(var(--n), minmax(0, 68px));
-  gap: 5px 6px;
+  grid-template-columns: repeat(var(--n), minmax(0, 72px));
+  gap: 10px 6px;
   margin-top: 10px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.sg-label {
-  grid-column: 1; /* every row starts in the label column, also on a wrapped line with fewer sets */
-  text-align: left; align-self: center;
-  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
-}
-.sg-label.sg-weight { color: var(--kg-label); }
-.sg-label.sg-reps { color: var(--text); }
-.sg-no { color: #b4b0ad; font-size: 12px; font-weight: 500; }
-.sg-val { font-size: 16px; font-weight: 700; line-height: 1; padding: 9px 4px; border-radius: 8px; white-space: nowrap; }
+.sg-set { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.sg-no { align-self: center; color: #b4b0ad; font-size: 12px; font-weight: 500; }
+.sg-val { font-size: 17px; font-weight: 700; line-height: 1; padding: 9px 2px; border-radius: 8px; white-space: nowrap; }
+.sg-val small { margin: 0 1px; font-size: 0.8em; font-weight: 600; opacity: 0.75; }
 .sg-val.sg-weight { color: var(--kg); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
 .sg-val.sg-reps { color: var(--cream); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
 /* A new best: the set number becomes a green badge and its values get a ring */
-.sg-no.best { justify-self: center; padding: 1px 8px; border-radius: 999px; background: var(--green); color: #142012; }
-.sg-val.best { box-shadow: inset 0 0 0 2px currentColor; }
+.sg-set.best .sg-no { padding: 1px 8px; border-radius: 999px; background: var(--green); color: #142012; }
+.sg-set.best .sg-val { box-shadow: inset 0 0 0 2px currentColor; }
 
 .list-item .ex-img { width: 44px; height: 44px; border-radius: 10px; }
 .list-item .ex-img svg { width: 22px; height: 22px; }
@@ -467,7 +460,7 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
   margin-bottom: 12px;
   padding: 14px 12px 14px 14px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #8aa983, #6c8a66);
+  background: linear-gradient(135deg, #96b388, #7a9a6c);
   color: #142012;
 }
 .all-done b { font-size: 19px; font-weight: 700; }
@@ -505,6 +498,7 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 #sheet-confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; }
 .sheet form { position: relative; }
 .sheet .btn.big { margin: 18px 0 0; }
+.sheet .btn:focus { outline: none; } /* it gets focus when the sheet opens */
 .sheet-title { font-size: 28px; font-weight: 600; line-height: 1.15; }
 .sheet .sub { margin-bottom: 14px; }
 .sheet-row { display: flex; flex-direction: column; gap: 2px; padding: 12px 0; border-top: 1px solid var(--border); }
@@ -529,14 +523,14 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
     radial-gradient(130% 130% at 0% 0%, #b4592f, #3a2a22 45%, #2a2828 70%) border-box;
 }
 .stat.orange .stat-icon { background: #3a2216; color: var(--accent); }
-.stat.green {
+.stat.blue {
   border-color: transparent;
   background:
-    radial-gradient(140% 120% at 0% 0%, rgba(167, 183, 119, 0.32), rgba(167, 183, 119, 0.08) 45%, transparent 78%) padding-box,
-    linear-gradient(#1e211b, #1b1d19) padding-box,
-    radial-gradient(130% 130% at 0% 0%, #6f7d4c, #343a2a 45%, #2a2828 70%) border-box;
+    radial-gradient(140% 120% at 0% 0%, rgba(130, 171, 212, 0.3), rgba(130, 171, 212, 0.07) 45%, transparent 78%) padding-box,
+    linear-gradient(#1b1e22, #181a1d) padding-box,
+    radial-gradient(130% 130% at 0% 0%, #4d6f92, #2b3440 45%, #2a2828 70%) border-box;
 }
-.stat.green .stat-icon { background: #2a3022; color: #a7b777; }
+.stat.blue .stat-icon { background: #1f2a36; color: var(--kg); }
 /* Phones: icon above the number so big numbers fit */
 @media (max-width: 520px) {
   .stat { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
@@ -544,14 +538,14 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   .stat-icon svg { width: 20px; height: 20px; }
   .stat b { font-size: 22px; }
 }
-.best-tag { color: #a7c495; font-size: 13px; font-weight: 600; }
+.best-tag { color: var(--green); font-size: 13px; font-weight: 600; }
 .best-line { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 /* A single set as bubbles: [60 kg] × [10] */
 .pills { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .pill { padding: 3px 9px; border-radius: 8px; font-size: 14px; font-weight: 700; line-height: 1.3; }
 .pill.kg { color: var(--kg); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
 .pill.reps { color: var(--cream); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
-.pill small, .sg-val small { margin-left: 1px; font-size: 0.66em; font-weight: 600; opacity: 0.8; }
+.pill small { margin-left: 1px; font-size: 0.8em; font-weight: 600; opacity: 0.75; }
 .times { color: var(--muted); font-size: 13px; }
 
 /* Little message at the top, e.g. a new best */
@@ -583,16 +577,16 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   background: var(--card); color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .month span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--card2); font-size: 12px; }
-.month.on { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); font-weight: 600; }
-.month.on span { background: rgba(29, 25, 19, 0.15); }
+.month.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.month.on span { background: rgba(31, 15, 6, 0.18); }
 .list-item.past { gap: 6px; padding: 16px; }
 .past-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .past-head b { font-size: 17px; }
-.past-stats { color: var(--cream); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.past-stats { color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .bubbles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .bubble {
   padding: 4px 11px; border-radius: 999px; font-size: 13px; font-weight: 500;
-  background: rgba(227, 201, 165, 0.12); color: var(--cream); box-shadow: inset 0 0 0 1px rgba(227, 201, 165, 0.28);
+  background: rgba(230, 206, 183, 0.12); color: var(--cream); box-shadow: inset 0 0 0 1px rgba(230, 206, 183, 0.28);
 }
 
 /* The stats row on a workout page */
@@ -613,7 +607,11 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .chart .axis { fill: var(--muted); font-size: 11px; }
 .chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart .pt { fill: var(--accent); stroke: #161616; stroke-width: 2; }
-.chart .pt.active { fill: var(--cream); r: 6; }
+.chart .pt.active { fill: var(--text); r: 6; }
+.chart-kg .line { stroke: var(--kg); }
+.chart-kg .pt { fill: var(--kg); }
+.chart-reps .line { stroke: var(--cream); }
+.chart-reps .pt { fill: var(--cream); }
 .chart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .chart .end-label { fill: var(--text); font-size: 12px; font-weight: 600; }
 .readout { display: flex; justify-content: center; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; font-weight: 500; margin: 6px 0 10px; }

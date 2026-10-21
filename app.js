@@ -53,26 +53,20 @@ function fmtSets(sets) {
   return same ? `${sets.length} × ${fmtSet(sets[0])}` : sets.map(fmtSet).join(' · ');
 }
 
-// Sets as a small table, one column per set with kg above reps, so the numbers line up and are easy to compare.
+// Sets as small columns, one per set: set number, kg (blue) and ×reps (cream), so values line up and compare easily.
+// At most 4 per line so the cells stay wide enough on a phone; later sets wrap below in the same columns.
 // items: [{ reps, weight, no (set number), best }]
 function setGrid(items) {
-  const hasKg = items.some(x => x.weight != null && x.weight !== '');
-  const unit = f => (f === 'weight' ? '<small>kg</small>' : '');
-  // At most 4 sets per line so the cells stay wide enough on a phone; later sets continue below, same columns
-  const PER_LINE = 4;
-  const cols = Math.min(items.length, PER_LINE);
-  const block = part => {
-    const row = (label, f) => `<span class="sg-label sg-${f}">${label}</span>${part.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} sg-${f} ${x.best ? 'best' : ''}">${x[f] != null && x[f] !== '' ? esc(x[f]) + unit(f) : '–'}</span>`).join('')}`;
-    return `
-      <div class="set-grid" style="--n:${cols}">
-        ${row('', 'no')}
-        ${hasKg ? row('kg', 'weight') : ''}
-        ${row('Reps', 'reps')}
-      </div>`;
-  };
-  const parts = [];
-  for (let i = 0; i < items.length; i += PER_LINE) parts.push(items.slice(i, i + PER_LINE));
-  return parts.map(block).join('');
+  const has = v => v != null && v !== '';
+  const hasKg = items.some(x => has(x.weight));
+  return `
+    <div class="set-grid" style="--n:${Math.min(items.length, 4)}">${items.map(x => `
+      <div class="sg-set ${x.best ? 'best' : ''}">
+        <span class="sg-no">${x.no}</span>
+        ${hasKg ? `<span class="sg-val sg-weight">${has(x.weight) ? `${esc(x.weight)}<small>kg</small>` : '–'}</span>` : ''}
+        <span class="sg-val sg-reps">${!has(x.reps) ? '–' : hasKg ? `<small>×</small>${esc(x.reps)}` : `${esc(x.reps)}<small>reps</small>`}</span>
+      </div>`).join('')}
+    </div>`;
 }
 
 const icon = path => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
@@ -80,6 +74,7 @@ const ICONS = {
   dumbbell: icon('<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>'),
   plates: icon('<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"/>'),
   trophy: icon('<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v4M8.5 20h7"/>'),
+  people: icon('<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 5.2a3 3 0 0 1 0 5.6M18 13.8c1.8.7 3 2.6 3 5.2"/>'),
   calendar: icon('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
 };
 const CHEVRON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6l-6 6 6 6"/></svg>';
@@ -306,11 +301,11 @@ async function home(mount) {
     <img class="hero" src="assets/logo.png?v=2" alt="${esc(CONFIG.APP_NAME)}">
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
-      ? `<a class="btn light big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
-      : `<button class="btn light big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
+      ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
+      : `<button class="btn cream big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
     <div class="row nowrap">
-      <a class="btn block grow tile" href="#/members">👥 Members (${members.length})</a>
-      <a class="btn block grow tile" href="#/exercises">🏋️ Exercises</a>
+      <a class="btn block grow tile" href="#/members">${ICONS.people}Members (${members.length})</a>
+      <a class="btn block grow tile" href="#/exercises">${ICONS.dumbbell}Exercises</a>
     </div>
     <h2>Past workouts</h2>
     ${months.length ? `<div class="months">${months.map(k => `
@@ -418,7 +413,7 @@ function lineChart(points, unit) {
   const xs = points.map(p => x(p.t));
   const end = points[points.length - 1];
   const svg = `
-    <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(unit)} over time">
+    <svg class="chart chart-${unit === 'kg' ? 'kg' : 'reps'}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(unit)} over time">
       ${ticks.map(t => `
         <line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/>
         <text class="axis" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${t}</text>`).join('')}
@@ -519,7 +514,7 @@ async function memberView(mount, id) {
     ${statsHtml([
       { icon: 'calendar', value: workouts.size, label: `workout${workouts.size === 1 ? '' : 's'}`, tone: 'orange' },
       { icon: 'plates', value: sets.length, label: 'sets' },
-      { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'green' },
+      { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'blue' },
     ])}
     <h2>Exercises</h2>
     ${groups.map(cardHtml).join('') || '<p class="muted">Nothing logged yet.</p>'}
@@ -667,7 +662,7 @@ async function workoutView(mount, wid) {
   const stats = statsHtml([
     { icon: 'dumbbell', value: wes.length, label: `exercise${wes.length === 1 ? '' : 's'}`, tone: 'orange' },
     { icon: 'plates', value: allSets.length, label: 'sets' },
-    { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'green' },
+    { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'blue' },
   ]);
 
   const v = mount(`
