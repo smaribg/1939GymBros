@@ -34,6 +34,9 @@ function shuffle(list) {
   return a;
 }
 
+// "60kg × 10", or "10 reps" without weight
+const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);
+
 // "10 @ 60kg"
 const fmtSet = s => `${s.reps ?? '?'}${s.weight != null && s.weight !== '' ? ` @ ${s.weight}kg` : ''}`;
 
@@ -121,6 +124,7 @@ let leaveHook = null; // set by a view that must finish saving before the next p
 const routes = [
   [/^$/, home],
   [/^members$/, membersView],
+  [/^exercises$/, exercisesView],
   [/^w\/([\w-]+)$/, workoutView],
   [/^w\/([\w-]+)\/pick$/, pickView],
   [/^w\/([\w-]+)\/(new|edit)\/([\w-]+)$/, logView],
@@ -180,7 +184,10 @@ async function home(mount) {
     ${active
       ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
       : `<button class="btn cream big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
-    <a class="btn block" href="#/members">Members (${members.length})</a>
+    <div class="row nowrap">
+      <a class="btn block grow" href="#/members">Members (${members.length})</a>
+      <a class="btn block grow" href="#/exercises">Exercises</a>
+    </div>
     <h2>Past workouts</h2>
     ${past.length
       ? `<div class="list">${past.map(w => `
@@ -238,6 +245,49 @@ async function membersView(mount) {
   })));
 }
 
+async function exercisesView(mount) {
+  const exercises = check(await sb.from('exercises').select('id, name, photo_path').order('name'));
+  const v = mount(`
+    <a class="back" href="#/">‹ Home</a>
+    <h1>Exercises</h1>
+    <p class="sub">Add exercises here so they're ready to pick in a workout</p>
+    <form class="row nowrap" data-add style="margin-bottom:16px">
+      <input class="grow" placeholder="New exercise name" autocomplete="off" required>
+      <button class="btn primary">Add</button>
+    </form>
+    <div class="list">
+      ${exercises.map(e => `
+        <div class="list-item row">
+          ${exImg(e.photo_path)}
+          <input class="grow" value="${esc(e.name)}" data-rename="${e.id}" aria-label="Name">
+          <button class="btn small danger" data-remove="${e.id}">Delete</button>
+        </div>`).join('') || '<p class="muted">No exercises yet.</p>'}
+    </div>
+  `);
+
+  v.querySelector('[data-add]').addEventListener('submit', act(async e => {
+    e.preventDefault();
+    const name = e.target.querySelector('input').value.trim();
+    if (!name || !await requireAuth()) return;
+    const { error } = await sb.from('exercises').insert({ name });
+    if (error?.code === '23505') return alert(`${name} already exists`);
+    check({ error });
+    router();
+  }));
+  v.querySelectorAll('[data-rename]').forEach(input => input.addEventListener('change', act(async () => {
+    const name = input.value.trim();
+    if (!name || !await requireAuth()) return;
+    check(await sb.from('exercises').update({ name }).eq('id', input.dataset.rename));
+  })));
+  v.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', act(async () => {
+    if (!confirm('Delete this exercise?') || !await requireAuth()) return;
+    const { error } = await sb.from('exercises').delete().eq('id', btn.dataset.remove);
+    if (error?.code === '23503') return alert('This exercise has been used in a workout, so it can\'t be deleted.');
+    check({ error });
+    router();
+  })));
+}
+
 async function workoutView(mount, wid) {
   const w = check(await sb.from('workouts')
     .select('id, started_at, finished_at, workout_exercises(id, created_at, exercises(name, photo_path), entries(absent, sets, members(name, created_at)))')
@@ -251,16 +301,17 @@ async function workoutView(mount, wid) {
     const absent = entries.filter(e => e.absent).map(e => e.members.name);
     return entries.filter(e => !e.absent).map(e => `
       <div class="ms-row">
-        <span class="ms-name">${esc(e.members.name)}</span>
-        ${e.sets.length
-          ? `<span class="mini-sets grow">${e.sets.map(x => `<span><b>${esc(x.reps)}</b><small>${esc(x.weight ?? '–')}</small></span>`).join('')}</span><small class="muted unit">kg</small>`
-          : '<span class="muted">—</span>'}
-      </div>`).join('') + (absent.length ? `<div class="ms-row muted"><span class="ms-name">Not here</span><span>${esc(absent.join(', '))}</span></div>` : '');
+        <div class="ms-head">
+          <span class="ms-name">${esc(e.members.name)}</span>
+          <span class="muted small">${e.sets.length ? `${e.sets.length} set${e.sets.length === 1 ? '' : 's'}` : 'No sets yet'}</span>
+        </div>
+        ${e.sets.length ? `<div class="set-chips">${e.sets.map((x, i) => `<span class="set-chip"><b>${i + 1}</b>${esc(fmtKgReps(x))}</span>`).join('')}</div>` : ''}
+      </div>`).join('') + (absent.length ? `<div class="ms-row"><div class="ms-head"><span class="muted small">Not here: ${esc(absent.join(', '))}</span></div></div>` : '');
   }
   const isDone = we => we.entries.length && we.entries.every(e => e.absent || e.sets.length);
   const setCount = we => {
-    const n = Math.max(0, ...we.entries.map(e => e.sets.length));
-    return `${n} set${n === 1 ? '' : 's'}`;
+    const n = we.entries.filter(e => !e.absent).length;
+    return `${n} member${n === 1 ? '' : 's'}`;
   };
 
   const v = mount(`
@@ -408,18 +459,25 @@ async function logView(mount, wid, mode, id) {
   const existingBy = new Map(existing.map(e => [e.member_id, e]));
   const members = allMembers.filter(m => m.active || existingBy.has(m.id));
   const memberById = new Map(members.map(m => [m.id, m]));
-  const toInput = s => ({ reps: String(s.reps ?? ''), weight: String(s.weight ?? '') });
+  // A set in the form: values as typed, plus whether it has been confirmed (only confirmed sets are saved)
+  const toInput = (s, done) => ({ reps: String(s.reps ?? ''), weight: String(s.weight ?? ''), done });
+  const copySet = s => ({ reps: s ? String(s.reps ?? '') : '10', weight: s?.weight != null ? String(s.weight) : '', done: false });
 
   // Local copy of the input (and where the guided flow is), so blank sets and the guided position survive too
   let draftKey = `draft2:${wid}:${weId || 'new-' + exercise.id}`;
   const saved = draft.load(draftKey) || {};
   const state = saved.members || {};
   for (const m of members) {
-    if (state[m.id]) continue;
+    if (state[m.id]) {
+      for (const set of state[m.id].sets) set.done ??= set.reps !== ''; // drafts from before sets had a done flag
+      continue;
+    }
     const ex = existingBy.get(m.id);
+    const prev = last.get(m.id)?.sets;
     state[m.id] = ex && (ex.absent || ex.sets.length)
-      ? { absent: ex.absent, sets: ex.sets.map(toInput) }
-      : { absent: false, sets: Array.from({ length: last.get(m.id)?.sets.length || 3 }, () => ({ reps: '', weight: '' })) };
+      ? { absent: ex.absent, sets: ex.sets.map(x => toInput(x, true)) }
+      // Start from what they did last time; they just confirm or adjust each set
+      : { absent: false, sets: prev ? prev.map(x => toInput(x, false)) : [copySet(), copySet(), copySet()] };
   }
   // Guided flow: members in random order, everyone does set 1, then everyone does set 2, ...
   let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
@@ -463,6 +521,7 @@ async function logView(mount, wid, mode, id) {
     const rows = members.map(m => {
       const s = state[m.id];
       const sets = s.absent ? [] : s.sets
+        .filter(x => x.done)
         .map(x => ({ reps: num(x.reps), weight: num(x.weight) }))
         .filter(x => x.reps != null);
       return { workout_exercise_id: weId, member_id: m.id, absent: s.absent, sets };
@@ -472,7 +531,7 @@ async function logView(mount, wid, mode, id) {
   }
 
   const eligible = (r, i) => { const s = state[order[i]]; return !!s && !s.absent && r < s.sets.length; };
-  const isTodo = p => eligible(p.r, p.i) && state[order[p.i]].sets[p.r].reps === '';
+  const isTodo = p => eligible(p.r, p.i) && !state[order[p.i]].sets[p.r].done;
   const same = (a, b) => a && b && a.r === b.r && a.i === b.i;
   const after = (a, b) => a.r > b.r || (a.r === b.r && a.i > b.i);
   const rounds = () => Math.max(0, ...members.filter(m => !state[m.id].absent).map(m => state[m.id].sets.length));
@@ -486,7 +545,7 @@ async function logView(mount, wid, mode, id) {
     const todo = slots().filter(p => isTodo(p) && !same(p, from));
     return (from && todo.find(p => after(p, from))) || todo[0] || null;
   }
-  const hasTodo = () => members.some(m => !state[m.id].absent && state[m.id].sets.some(s => s.reps === ''));
+  const hasTodo = () => members.some(m => !state[m.id].absent && state[m.id].sets.some(s => !s.done));
 
   const v = mount(`
     <a class="back" href="#/w/${wid}">‹ Workout</a>
@@ -534,42 +593,47 @@ async function logView(mount, wid, mode, id) {
 
   // ----- list mode: every member as a card -----
 
+  const TICK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
   function cardHtml(m) {
     const s = state[m.id];
     const l = last.get(m.id);
     const ls = l?.sets || [];
     if (s.absent) {
       return `
-        <div class="card member absent">
-          <div class="card-head"><h3>${esc(m.name)} <span class="muted">· not here</span></h3>
-          <button class="btn small" data-absent="${m.id}">Here</button></div>
+        <div class="absent-row">
+          <span class="grow">${esc(m.name)}</span>
+          <button class="btn small" data-absent="${m.id}">Here</button>
         </div>`;
     }
     return `
       <div class="card member">
-        <div class="card-head"><h3>${esc(m.name)}</h3>
-        <button class="btn small ghost" data-absent="${m.id}">Not here</button></div>
-        <div class="last">${l ? `Last time (${fmtShort(l.date)}): <b>${esc(fmtSets(ls))}</b>` : 'No previous record'}</div>
-        ${s.sets.length ? '<div class="set-head"><span>Set</span><span>Reps</span><span>Weight (kg)</span><span></span></div>' : ''}
+        <div class="card-head">
+          <div class="col"><h3>${esc(m.name)}</h3><span class="muted small">${l ? `Last time ${fmtShort(l.date)}` : 'First time'}</span></div>
+          <button class="btn small ghost" data-absent="${m.id}">Not here</button>
+        </div>
+        ${s.sets.length ? `<div class="set-head"><span>Set</span><span>Previous</span><span>kg</span><span>Reps</span><span>${TICK}</span></div>` : ''}
         ${s.sets.map((set, i) => `
-          <div class="set-row">
+          <div class="set-row ${set.done ? 'done' : ''}">
             <span class="set-no">${i + 1}</span>
-            <label><input inputmode="numeric" data-m="${m.id}" data-i="${i}" data-f="reps" value="${esc(set.reps)}" placeholder="${esc(ls[i]?.reps ?? 'Reps')}">${lastHint(ls[i]?.reps)}</label>
-            <label><input inputmode="decimal" data-m="${m.id}" data-i="${i}" data-f="weight" value="${esc(set.weight)}" placeholder="${esc(ls[i]?.weight ?? 'kg')}">${lastHint(ls[i]?.weight, 'kg')}</label>
-            <span class="check ${set.reps !== '' ? 'done' : ''}"></span>
+            <span class="prev">${ls[i] ? esc(fmtKgReps(ls[i])) : '—'}</span>
+            <input inputmode="decimal" data-m="${m.id}" data-i="${i}" data-f="weight" value="${esc(set.weight)}" placeholder="kg" aria-label="Weight">
+            <input inputmode="numeric" data-m="${m.id}" data-i="${i}" data-f="reps" value="${esc(set.reps)}" placeholder="reps" aria-label="Reps">
+            <button class="tick" data-tick="${m.id}" data-i="${i}" aria-label="Set done">${TICK}</button>
           </div>`).join('')}
         <div class="row">
           <button class="btn small" data-addset="${m.id}">+ Set</button>
           ${s.sets.length ? `<button class="btn small" data-delset="${m.id}">− Set</button>` : ''}
-          ${ls.length ? `<button class="btn small" data-copy="${m.id}">Copy last time</button>` : ''}
         </div>
       </div>`;
   }
 
   function renderList() {
-    const anyFilled = members.some(m => state[m.id].sets.some(s => s.reps !== ''));
+    const anyDone = members.some(m => state[m.id].sets.some(x => x.done));
     const todo = hasTodo();
-    const cardOrder = order ? order.map(mid => memberById.get(mid)).filter(Boolean) : members;
+    const ordered = order ? order.map(mid => memberById.get(mid)).filter(Boolean) : members;
+    const present = ordered.filter(m => !state[m.id].absent);
+    const absent = ordered.filter(m => state[m.id].absent);
     body.innerHTML = `
       <div class="card stepper">
         <span class="grow">Sets for everyone</span>
@@ -578,9 +642,10 @@ async function logView(mount, wid, mode, id) {
         <button class="btn small" data-sets="1" aria-label="One set more">+</button>
       </div>
       ${todo
-        ? `<button class="btn cream big" data-g="start">▶ ${anyFilled ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
-        : anyFilled ? '<div class="notice row"><span class="grow">All sets done 💪</span><button class="btn small" data-g="round">+ Another round</button></div>' : ''}
-      ${cardOrder.map(cardHtml).join('')}
+        ? `<button class="btn cream big" data-g="start">▶ ${anyDone ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
+        : anyDone ? '<div class="notice row"><span class="grow">All sets done 💪</span><button class="btn small" data-g="round">+ Another round</button></div>' : ''}
+      ${present.map(cardHtml).join('')}
+      ${absent.length ? `<h2>Not here</h2>${absent.map(cardHtml).join('')}` : ''}
       ${weId ? '<button class="btn small danger" data-remove>Remove from workout</button>' : ''}
     `;
     bottom.innerHTML = `<button class="btn primary big" data-done>Complete exercise →</button>`;
@@ -595,9 +660,9 @@ async function logView(mount, wid, mode, id) {
     const set = s.sets[r];
     const l = last.get(m.id);
     const lastSet = l?.sets[r];
-    const today = s.sets.slice(0, r).filter(x => x.reps !== '');
-    // Weight usually stays the same, so prefill it from the previous set or from last time
-    const weight = set.weight || s.sets[r - 1]?.weight || (lastSet?.weight != null ? String(lastSet.weight) : '');
+    const today = s.sets.slice(0, r).filter(x => x.done);
+    // Weight usually stays the same, so fall back to the previous set's
+    const weight = set.weight || s.sets[r - 1]?.weight || '';
     const inRound = slots().filter(p => p.r === r);
     const next = nextTodo(cursor);
     const isFirst = same(slots()[0], cursor);
@@ -633,13 +698,14 @@ async function logView(mount, wid, mode, id) {
     if (focusReps && cursor) body.querySelector('[data-f="reps"]').focus();
   }
 
-  // Writes the step's inputs into state; returns false if reps are missing
-  function commitStep() {
+  // Writes the step's inputs into state (and confirms the set if asked); returns false if reps are missing
+  function commitStep(markDone) {
     const reps = body.querySelector('[data-step] [data-f="reps"]');
     const weight = body.querySelector('[data-step] [data-f="weight"]');
     const set = state[order[cursor.i]].sets[cursor.r];
     set.reps = reps.value.trim();
     set.weight = weight.value.trim();
+    if (markDone && set.reps !== '') set.done = true;
     return set.reps !== '';
   }
 
@@ -661,12 +727,12 @@ async function logView(mount, wid, mode, id) {
       const n = rounds();
       for (const m of members) {
         const s = state[m.id];
-        if (!s.absent && s.sets.length === n) s.sets.push({ reps: '', weight: '' });
+        if (!s.absent && s.sets.length === n) s.sets.push(copySet(s.sets[n - 1]));
       }
       if (!order) order = shuffle(members.map(m => m.id));
       move(nextTodo(null));
     } else if (action === 'next') {
-      if (!commitStep()) {
+      if (!commitStep(true)) {
         const reps = body.querySelector('[data-f="reps"]');
         reps.classList.add('invalid');
         reps.focus();
@@ -696,7 +762,6 @@ async function logView(mount, wid, mode, id) {
     t.classList.remove('invalid');
     if (!t.dataset.m) return;
     state[t.dataset.m].sets[+t.dataset.i][t.dataset.f] = t.value;
-    if (t.dataset.f === 'reps') t.closest('.set-row').querySelector('.check').classList.toggle('done', t.value.trim() !== '');
     persist();
   });
 
@@ -715,25 +780,32 @@ async function logView(mount, wid, mode, id) {
     if (d.g) return guidedAction(d.g);
     if (b.hasAttribute('data-remove')) return removeExercise();
     if (d.sets) {
-      // Give every present member the same number of sets; filled-in sets are never removed
+      // Give every present member the same number of sets; finished sets are never removed
       const n = Math.max(1, rounds() + +d.sets);
       for (const m of members) {
         const sets = state[m.id].sets;
         if (state[m.id].absent) continue;
-        while (sets.length < n) sets.push({ reps: '', weight: '' });
-        while (sets.length > n && sets[sets.length - 1].reps === '') sets.pop();
+        while (sets.length < n) sets.push(copySet(last.get(m.id)?.sets[sets.length] || sets[sets.length - 1]));
+        while (sets.length > n && !sets[sets.length - 1].done) sets.pop();
       }
     } else if (d.absent) {
       const s = state[d.absent];
       s.absent = !s.absent;
-      if (!s.absent && !s.sets.length) s.sets.push({ reps: '', weight: '' });
+      if (!s.absent && !s.sets.length) s.sets.push(copySet(last.get(d.absent)?.sets[0]));
     } else if (d.addset) {
       const sets = state[d.addset].sets;
-      sets.push({ ...(sets[sets.length - 1] || { reps: '', weight: '' }) }); // new set starts as a copy of the previous one
+      sets.push(copySet(last.get(d.addset)?.sets[sets.length] || sets[sets.length - 1])); // last time's set, or a copy of the previous one
     } else if (d.delset) {
       state[d.delset].sets.pop();
-    } else if (d.copy) {
-      state[d.copy].sets = last.get(d.copy).sets.map(toInput);
+    } else if (d.tick) {
+      const set = state[d.tick].sets[+d.i];
+      if (!set.done && set.reps.trim() === '') {
+        const reps = b.closest('.set-row').querySelector('[data-f="reps"]');
+        reps.classList.add('invalid');
+        reps.focus();
+        return;
+      }
+      set.done = !set.done;
     } else {
       return;
     }

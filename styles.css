@@ -201,12 +201,6 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .check.done::after { content: ""; width: 10px; height: 6px; margin-top: -3px; border: solid #1b2219; border-width: 0 0 2.5px 2.5px; transform: rotate(-45deg); }
 
 /* Per-member sets in the workout overview: reps above kg */
-.ms-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0 0; margin-top: 8px; border-top: 1px solid var(--border); }
-.ms-name { flex: none; width: 72px; color: var(--muted); font-size: 14px; padding-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mini-sets { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.mini-sets span { display: flex; flex-direction: column; align-items: center; min-width: 22px; }
-.mini-sets b { font-weight: 500; font-size: 15px; }
-.mini-sets small { color: var(--muted); font-size: 13px; }
 
 /* ---------- exercise screen ---------- */
 
@@ -231,18 +225,57 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .stepper .btn { width: 44px; padding: 0; font-size: 22px; }
 .stepper b { min-width: 26px; text-align: center; font-size: 22px; font-weight: 600; }
 
-.member.absent { opacity: 0.55; padding: 12px 16px; }
 .last { margin: 6px 0 12px; font-size: 14px; color: var(--muted); }
 .last b { color: var(--text); font-weight: 500; }
-
-.set-head, .set-row { display: grid; grid-template-columns: 28px 1fr 1fr 34px; gap: 8px; }
-.set-head { margin-bottom: 6px; color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; text-align: center; }
-.set-head span:first-child { text-align: center; }
-.set-row { align-items: start; margin-bottom: 8px; }
-.set-row input { text-align: center; }
-.set-no { color: var(--muted); text-align: center; line-height: 46px; }
-.set-row .check { margin-top: 8px; }
+.small { font-size: 13px; }
 .hint { display: block; margin-top: 3px; text-align: center; font-size: 12px; color: var(--muted); }
+
+/* Members who are here stand out from the page; members who aren't sit quietly at the bottom */
+.member { background: #1a1b19; border-color: #30312d; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
+.absent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 8px 6px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+}
+
+/* Set table: SET | PREVIOUS | KG | REPS | ✓ */
+.set-head, .set-row { display: grid; grid-template-columns: 34px 1.2fr 1fr 1fr 40px; gap: 6px; align-items: center; }
+.set-head { margin: 14px 0 6px; color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; text-align: center; }
+.set-head svg { width: 16px; height: 16px; vertical-align: middle; }
+.set-row { margin: 0 -5px 6px; padding: 5px; border-radius: 12px; transition: background 0.15s; }
+.set-no {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--card2);
+  font-weight: 600;
+}
+.prev { color: var(--muted); font-size: 14px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-row input { min-height: 40px; padding: 6px 4px; text-align: center; background: transparent; border-color: #3a3b37; }
+.tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--card2);
+  color: var(--muted);
+  cursor: pointer;
+}
+/* A finished set: the whole row turns green */
+.set-row.done { background: rgba(127, 155, 121, 0.28); }
+.set-row.done .set-no, .set-row.done .tick { background: var(--green); color: #142012; }
+.set-row.done .prev { color: #b9c7b4; }
+.set-row.done input { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
 
 /* ---------- guided step ---------- */
 
@@ -290,4 +323,32 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ex-summary-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
 .ex-summary .ex-img { width: 64px; height: 64px; border-radius: 12px; }
 .ex-summary .ex-img svg { width: 26px; height: 26px; }
-.ms-row .unit { flex: none; align-self: flex-end; }
+
+/* Workout overview: one block per member, sets as numbered chips (same look as the set table) */
+.ms-row { padding: 10px 0 0; margin-top: 10px; border-top: 1px solid var(--border); }
+.ms-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ms-name { font-weight: 500; }
+.set-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.set-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 10px;
+  background: rgba(127, 155, 121, 0.22);
+  font-size: 14px;
+}
+.set-chip b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--green);
+  color: #142012;
+  font-size: 13px;
+}
+
+.list-item .ex-img { width: 44px; height: 44px; border-radius: 10px; }
+.list-item .ex-img svg { width: 22px; height: 22px; }
