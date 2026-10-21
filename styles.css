@@ -389,7 +389,6 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 /* White numbers everywhere; the bubble (and the small kg / × in its color) carries the color code */
 .sg-val small { margin: 0 1px; font-size: 0.8em; font-weight: 600; }
 .sg-val.sg-weight { color: var(--text); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
-.sg-val.sg-weight small { color: var(--kg); }
 .sg-val.sg-reps { color: var(--text); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
 .sg-val.sg-reps small { color: var(--cream); }
 /* A new best: the set number becomes a green badge and its values get a ring */
@@ -550,7 +549,6 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .pill.kg { color: var(--text); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
 .pill.reps { color: var(--text); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
 .pill small { margin-left: 1px; font-size: 0.8em; font-weight: 600; }
-.pill.kg small { color: var(--kg); }
 .pill.reps small { color: var(--cream); }
 .times { color: var(--muted); font-size: 13px; }
 
