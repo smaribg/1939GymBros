@@ -61,6 +61,24 @@ function setGrid(items) {
     </div>`;
 }
 
+const icon = path => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+const ICONS = {
+  dumbbell: icon('<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>'),
+  plates: icon('<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"/>'),
+  trophy: icon('<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v4M8.5 20h7"/>'),
+  calendar: icon('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+};
+const CHEVRON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6l-6 6 6 6"/></svg>';
+
+// Row of three stat cards. items: [{ icon, value, label, tone: 'orange' | 'green' | '' }]
+const statsHtml = items => `
+  <div class="stats">${items.map(s => `
+    <div class="stat ${s.tone || ''}">
+      <div class="stat-icon">${ICONS[s.icon]}</div>
+      <div class="stat-text"><b>${s.value}</b><span>${s.label}</span></div>
+    </div>`).join('')}
+  </div>`;
+
 const draft = {
   load(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
   save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ } },
@@ -334,7 +352,7 @@ async function membersView(mount) {
   }
   const count = id => sessions.get(id)?.size || 0;
   const v = mount(`
-    <a class="back" href="#/">‹ Home</a>
+    <a class="back" href="#/">${CHEVRON}Home</a>
     <h1>Members</h1>
     <p class="sub">Everyone who trains together</p>
     <div class="list">
@@ -410,7 +428,7 @@ async function memberView(mount, id) {
       .then(check),
   ]);
   if (!member) {
-    mount('<a class="back" href="#/members">‹ Members</a><div class="notice">This member doesn’t exist anymore.</div>');
+    mount(`<a class="back" href="#/members">${CHEVRON}Members</a><div class="notice">This member doesn’t exist anymore.</div>`);
     return;
   }
 
@@ -481,14 +499,14 @@ async function memberView(mount, id) {
   }
 
   const v = mount(`
-    <a class="back" href="#/members">‹ Members</a>
+    <a class="back" href="#/members">${CHEVRON}Members</a>
     <h1>${esc(member.name)}</h1>
     <p class="sub">${member.active ? 'Progress over time' : 'No longer a member'}</p>
-    <div class="stats">
-      <div class="stat"><b>${workouts.size}</b><span>workout${workouts.size === 1 ? '' : 's'}</span></div>
-      <div class="stat"><b>${sets.length}</b><span>sets</span></div>
-      <div class="stat"><b>${Math.round(kg).toLocaleString('en-GB')}</b><span>kg lifted</span></div>
-    </div>
+    ${statsHtml([
+      { icon: 'calendar', value: workouts.size, label: `workout${workouts.size === 1 ? '' : 's'}`, tone: 'orange' },
+      { icon: 'plates', value: sets.length, label: 'sets' },
+      { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'green' },
+    ])}
     <h2>Exercises</h2>
     ${groups.map(cardHtml).join('') || '<p class="muted">Nothing logged yet.</p>'}
     <h2>Settings</h2>
@@ -541,7 +559,7 @@ async function memberView(mount, id) {
 async function exercisesView(mount) {
   const exercises = check(await sb.from('exercises').select('id, name, photo_path').order('name'));
   const v = mount(`
-    <a class="back" href="#/">‹ Home</a>
+    <a class="back" href="#/">${CHEVRON}Home</a>
     <h1>Exercises</h1>
     <p class="sub">Add exercises here so they're ready to pick in a workout</p>
     <form class="row nowrap" data-add style="margin-bottom:16px">
@@ -632,19 +650,19 @@ async function workoutView(mount, wid) {
   // Everyone who logged a set, in the usual member order
   const people = new Set(wes.flatMap(we => we.entries.filter(e => !e.absent && e.sets.length))
     .map(e => e.members).sort(byCreated).map(m => m.name));
-  const statsHtml = `
-    <div class="stats">
-      <div class="stat"><b>${wes.length}</b><span>exercise${wes.length === 1 ? '' : 's'}</span></div>
-      <div class="stat"><b>${allSets.length}</b><span>sets</span></div>
-      <div class="stat"><b>${Math.round(kg).toLocaleString('en-GB')}</b><span>kg lifted</span></div>
-    </div>`;
+  const stats = statsHtml([
+    { icon: 'dumbbell', value: wes.length, label: `exercise${wes.length === 1 ? '' : 's'}`, tone: 'orange' },
+    { icon: 'plates', value: allSets.length, label: 'sets' },
+    { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'green' },
+  ]);
 
   const v = mount(`
-    <a class="back" href="#/">‹ Home</a>
+    <a class="back" href="#/">${CHEVRON}Home</a>
     <h1>${w.finished_at ? 'Workout' : 'Today’s Workout'}</h1>
     <p class="sub">${fmtDate(w.started_at)}</p>
     ${people.size ? `<div class="bubbles workout-people">${[...people].map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</div>` : ''}
-    ${allSets.length ? statsHtml : ''}
+    ${allSets.length ? stats : ''}
+    <div class="panel">
     ${wes.map(we => `
       <div class="card ex-summary">
         <button class="ex-summary-head" data-expand>
@@ -660,8 +678,9 @@ async function workoutView(mount, wid) {
           ${memberRows(we)}
           <a class="btn small" href="#/w/${wid}/edit/${we.id}" style="margin-top:12px">Open exercise</a>
         </div>
-      </div>`).join('') || '<p class="muted">No exercises yet.</p>'}
-    <a class="btn cream big" href="#/w/${wid}/pick">+ Add exercise</a>
+      </div>`).join('') || '<p class="muted center">No exercises yet.</p>'}
+      <a class="btn dashed big" href="#/w/${wid}/pick"><span class="plus-dot">+</span>Add exercise</a>
+    </div>
     ${w.finished_at ? '' : '<button class="btn primary block" data-finish>Finish workout</button>'}
     <button class="btn small danger" data-delete>Delete workout</button>
   `);
@@ -677,7 +696,7 @@ async function workoutView(mount, wid) {
     return `
       <div class="sheet-title">Workout finished 🎉</div>
       <p class="sub">${fmtDate(w.started_at)} · ${people.size} member${people.size === 1 ? '' : 's'}</p>
-      ${statsHtml}
+      ${stats}
       ${wes.map(we => `
         <div class="sheet-row">
           <b>${esc(we.exercises.name)}</b>
@@ -710,7 +729,7 @@ async function pickView(mount, wid) {
   const usedBy = new Map(used.map(u => [u.exercise_id, u.id]));
 
   const v = mount(`
-    <a class="back" href="#/w/${wid}">‹ Workout</a>
+    <a class="back" href="#/w/${wid}">${CHEVRON}Workout</a>
     <h1>Add exercise</h1>
     <p class="sub">Pick one you've done before, or type a new name</p>
     <div class="search">
@@ -937,7 +956,7 @@ async function logView(mount, wid, mode, id) {
   const hasTodo = () => members.some(m => !state[m.id].absent && state[m.id].sets.some(s => !s.done));
 
   const v = mount(`
-    <a class="back" href="#/w/${wid}">‹ Workout</a>
+    <a class="back" href="#/w/${wid}">${CHEVRON}Workout</a>
     <h1>${esc(exercise.name)}</h1>
     <button class="save-status" data-status></button>
     <div class="photo-block" data-photo></div>
