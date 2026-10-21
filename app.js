@@ -96,8 +96,13 @@ function showSheet(html) {
   const dlg = $('#sheet');
   $('#sheet-body').innerHTML = html;
   dlg.scrollTop = 0;
+  document.documentElement.classList.add('no-scroll');
   return new Promise(resolve => {
-    dlg.onclose = () => { dlg.onclose = null; resolve(); };
+    dlg.onclose = () => {
+      dlg.onclose = null;
+      document.documentElement.classList.remove('no-scroll');
+      resolve();
+    };
     dlg.showModal();
     celebrate(true, true);
   });

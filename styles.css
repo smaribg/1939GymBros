@@ -430,16 +430,20 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .all-done .btn { background: rgba(20, 32, 18, 0.15); border-color: rgba(20, 32, 18, 0.3); color: #142012; }
 
 /* Summary sheet after completing an exercise or workout */
+/* Centered in the visible screen (dvh leaves out the phone browser's toolbars) */
 dialog.sheet {
-  width: 100%;
-  max-width: 640px;
-  max-height: 88vh;
-  margin: auto auto 0;
-  padding: 24px 18px calc(16px + env(safe-area-inset-bottom));
-  border-radius: 24px 24px 0 0;
-  border-bottom: none;
+  width: calc(100% - 24px);
+  max-width: 600px;
+  max-height: 85vh;
+  max-height: 85dvh;
+  margin: auto;
+  padding: 24px 18px 18px;
+  border-radius: 24px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
+/* The page behind an open sheet doesn't scroll */
+html.no-scroll, html.no-scroll body { overflow: hidden; }
 dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 @keyframes sheet-in { from { opacity: 0; } to { opacity: 1; } } /* no transform: it would trap the confetti canvas */
 #sheet-confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; }
