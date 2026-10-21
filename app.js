@@ -289,6 +289,7 @@ async function home(mount) {
   };
 
   const v = mount(`
+    <img class="hero" src="assets/logo.png" alt="${esc(CONFIG.APP_NAME)}">
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
       ? `<a class="btn light big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
@@ -1321,7 +1322,7 @@ async function logView(mount, wid, mode, id) {
 document.addEventListener('gesturestart', e => e.preventDefault());
 
 (async function init() {
-  document.title = $('#logo img').alt = CONFIG.APP_NAME;
+  document.title = CONFIG.APP_NAME;
   if (CONFIG.SUPABASE_URL.includes('YOUR-PROJECT')) {
     app.innerHTML = '<div class="notice">Set your Supabase URL, key and group email in <b>config.js</b> (see README.md).</div>';
     return;
