@@ -38,6 +38,11 @@ function shuffle(list) {
 // "60kg × 10", or "10 reps" without weight
 const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);
 
+// A set as the same green kg / cream reps bubbles as the sets tables: [60 kg] × [10]
+const kgRepsPills = x => `<span class="pills">${x.weight != null && x.weight !== ''
+  ? `<span class="pill kg">${esc(x.weight)}<small>kg</small></span><span class="times">×</span><span class="pill reps">${esc(x.reps ?? '?')}</span>`
+  : `<span class="pill reps">${esc(x.reps ?? '?')}<small>reps</small></span>`}</span>`;
+
 // "10 @ 60kg"
 const fmtSet = s => `${s.reps ?? '?'}${s.weight != null && s.weight !== '' ? ` @ ${s.weight}kg` : ''}`;
 
@@ -52,13 +57,22 @@ function fmtSets(sets) {
 // items: [{ reps, weight, no (set number), best }]
 function setGrid(items) {
   const hasKg = items.some(x => x.weight != null && x.weight !== '');
-  const row = (label, f) => `<span class="sg-label sg-${f}">${label}</span>${items.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} sg-${f} ${x.best ? 'best' : ''}">${esc(x[f] ?? '–')}</span>`).join('')}`;
-  return `
-    <div class="set-grid" style="--n:${items.length}">
-      ${row('', 'no')}
-      ${hasKg ? row('kg', 'weight') : ''}
-      ${row('Reps', 'reps')}
-    </div>`;
+  const unit = f => (f === 'weight' ? '<small>kg</small>' : '');
+  // At most 4 sets per line so the cells stay wide enough on a phone; later sets continue below, same columns
+  const PER_LINE = 4;
+  const cols = Math.min(items.length, PER_LINE);
+  const block = part => {
+    const row = (label, f) => `<span class="sg-label sg-${f}">${label}</span>${part.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} sg-${f} ${x.best ? 'best' : ''}">${x[f] != null && x[f] !== '' ? esc(x[f]) + unit(f) : '–'}</span>`).join('')}`;
+    return `
+      <div class="set-grid" style="--n:${cols}">
+        ${row('', 'no')}
+        ${hasKg ? row('kg', 'weight') : ''}
+        ${row('Reps', 'reps')}
+      </div>`;
+  };
+  const parts = [];
+  for (let i = 0; i < items.length; i += PER_LINE) parts.push(items.slice(i, i + PER_LINE));
+  return parts.map(block).join('');
 }
 
 const icon = path => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
@@ -289,7 +303,7 @@ async function home(mount) {
   };
 
   const v = mount(`
-    <img class="hero" src="assets/logo.png" alt="${esc(CONFIG.APP_NAME)}">
+    <img class="hero" src="assets/logo.png?v=2" alt="${esc(CONFIG.APP_NAME)}">
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
       ? `<a class="btn light big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
@@ -458,7 +472,7 @@ async function memberView(mount, id) {
     if (g.sessions.length < 2) return '<p class="muted small">Done once so far. The chart shows up after the next time.</p>';
     const points = g.sessions.map(s => {
       const x = m === 'kg' ? topSet(s.sets) : mostReps(s.sets);
-      return { t: s.t, v: (m === 'kg' ? x.weight : x.reps) ?? 0, label: `${fmtShort(s.t)} · ${fmtKgReps(x)}` };
+      return { t: s.t, v: (m === 'kg' ? x.weight : x.reps) ?? 0, label: `<span>${fmtShort(s.t)}</span>${kgRepsPills(x)}` };
     });
     const chart = lineChart(points, m);
     charts.set(g.exercise.id, { ...chart, points });
@@ -469,7 +483,7 @@ async function memberView(mount, id) {
           <button class="${m === 'reps' ? 'on' : ''}" data-metric="reps">Most reps</button>
         </div>` : ''}
       ${chart.svg}
-      <div class="readout">${esc(points[points.length - 1].label)}</div>`;
+      <div class="readout">${points[points.length - 1].label}</div>`;
   }
 
   function cardHtml(g) {
@@ -483,7 +497,7 @@ async function memberView(mount, id) {
           <span class="grow col">
             <span class="ex-title">${esc(g.exercise.name)}</span>
             <span class="muted small">${g.sessions.length} time${g.sessions.length === 1 ? '' : 's'} · last ${fmtShort(lastT)}</span>
-            <span class="best-tag">Best ${esc(fmtKgReps(best))}</span>
+            <span class="best-line"><span class="best-tag">Best</span>${kgRepsPills(best)}</span>
           </span>
         </div>
         <div data-chart>${chartHtml(g)}</div>
@@ -530,7 +544,7 @@ async function memberView(mount, id) {
     cross.setAttribute('x1', c.xs[k]);
     cross.setAttribute('x2', c.xs[k]);
     cross.setAttribute('visibility', 'visible');
-    card.querySelector('.readout').textContent = c.points[k].label;
+    card.querySelector('.readout').innerHTML = c.points[k].label;
   }
   v.addEventListener('pointerdown', e => { const c = e.target.closest('.chart'); if (c) pick(c, e); });
   v.addEventListener('pointermove', e => { const c = e.target.closest('.chart'); if (c && (e.buttons || e.pointerType === 'mouse')) pick(c, e); });
@@ -669,7 +683,7 @@ async function workoutView(mount, wid) {
           ${exImg(we.exercises.photo_path)}
           <span class="grow col">
             <span class="ex-title">${esc(we.exercises.name)}</span>
-            <span class="muted small">${esc(participants(we).join(', ')) || 'No sets yet'}</span>
+            ${participants(we).length ? '' : '<span class="muted small">No sets yet</span>'}
           </span>
           <span class="check ${isDone(we) ? 'done' : ''}"></span>
           <span class="chev">▾</span>
