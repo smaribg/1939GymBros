@@ -2,6 +2,7 @@
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
+const DEFAULT_SETS = 4; // for someone doing an exercise for the first time
 let sb = null;
 let session = null;
 
@@ -477,7 +478,7 @@ async function logView(mount, wid, mode, id) {
     state[m.id] = ex && (ex.absent || ex.sets.length)
       ? { absent: ex.absent, sets: ex.sets.map(x => toInput(x, true)) }
       // Start from what they did last time; they just confirm or adjust each set
-      : { absent: false, sets: prev ? prev.map(x => toInput(x, false)) : [copySet(), copySet(), copySet()] };
+      : { absent: false, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: DEFAULT_SETS }, () => copySet()) };
   }
   // Guided flow: members in random order, everyone does set 1, then everyone does set 2, ...
   let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
