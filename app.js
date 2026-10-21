@@ -175,7 +175,7 @@ async function home(mount) {
   const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(', ') || 'No exercises';
 
   const v = mount(`
-    <img class="hero" src="assets/logo.jpg" alt="${esc(CONFIG.APP_NAME)}">
+    <img class="hero" src="assets/logo.png" alt="${esc(CONFIG.APP_NAME)}">
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
       ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
