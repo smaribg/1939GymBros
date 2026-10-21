@@ -1023,6 +1023,9 @@ async function logView(mount, wid, mode, id) {
 
 // ---------- start ----------
 
+// No pinch-zoom on iPhone (Safari ignores user-scalable=no); accidental zooms while scrolling are annoying
+document.addEventListener('gesturestart', e => e.preventDefault());
+
 (async function init() {
   document.title = $('#logo').textContent = CONFIG.APP_NAME;
   if (CONFIG.SUPABASE_URL.includes('YOUR-PROJECT')) {
