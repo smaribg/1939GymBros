@@ -479,3 +479,5 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   pointer-events: none;
 }
 .toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition: transform 0.25s ease-out, opacity 0.25s; }
+
+.people { font-size: 14px; color: var(--cream); opacity: 0.85; }

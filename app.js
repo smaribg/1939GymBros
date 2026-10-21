@@ -223,7 +223,7 @@ async function router() {
 async function home(mount) {
   const [workouts, members] = await Promise.all([
     sb.from('workouts')
-      .select('id, started_at, finished_at, workout_exercises(created_at, exercises(name))')
+      .select('id, started_at, finished_at, workout_exercises(created_at, exercises(name), entries(absent, sets, members(name, created_at)))')
       .order('started_at', { ascending: false })
       .limit(100)
       .then(check),
@@ -232,6 +232,14 @@ async function home(mount) {
   const active = workouts.find(w => !w.finished_at);
   const past = workouts.filter(w => w.finished_at);
   const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(', ') || 'No exercises';
+  // Everyone who logged at least one set, in the usual member order
+  const people = w => {
+    const byName = new Map();
+    for (const e of w.workout_exercises.flatMap(we => we.entries)) {
+      if (!e.absent && e.sets.length) byName.set(e.members.name, e.members.created_at);
+    }
+    return [...byName].sort((a, b) => a[1].localeCompare(b[1])).map(([name]) => name);
+  };
 
   const v = mount(`
     <img class="hero" src="assets/logo.png" alt="${esc(CONFIG.APP_NAME)}">
@@ -249,6 +257,7 @@ async function home(mount) {
           <a class="list-item" href="#/w/${w.id}">
             <b>${fmtDate(w.started_at)}</b>
             <span class="muted">${esc(summary(w))}</span>
+            ${people(w).length ? `<span class="people">👥 ${esc(people(w).join(', '))}</span>` : ''}
           </a>`).join('')}</div>`
       : '<p class="muted">No workouts yet.</p>'}
   `);
