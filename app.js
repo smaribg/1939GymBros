@@ -507,6 +507,7 @@ async function logView(mount, wid, mode, id) {
   let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
   if (order) order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
   let cursor = order ? saved.cursor || null : null; // { r: set index, i: index in order } while guided
+  let showList = false; // the full member list is tucked away behind a button
   const persist = () => {
     draft.save(draftKey, { members: state, order, cursor });
     scheduleSave();
@@ -665,11 +666,14 @@ async function logView(mount, wid, mode, id) {
       ${todo
         ? `<button class="btn cream big" data-g="start">▶ ${anyDone ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
         : anyDone ? '<div class="notice row"><span class="grow">All sets done 💪</span><button class="btn small" data-g="round">+ Another round</button></div>' : ''}
-      ${present.map(cardHtml).join('')}
-      ${absent.length ? `<h2>Not here</h2>${absent.map(cardHtml).join('')}` : ''}
+      <button class="btn block" data-toggle-list>${showList ? 'Hide sets ▴' : `Show all sets ▾<small>${present.length} here${absent.length ? `, ${absent.length} not here` : ''}</small>`}</button>
+      ${showList ? `
+        ${present.map(cardHtml).join('')}
+        ${absent.length ? `<h2>Not here</h2>${absent.map(cardHtml).join('')}` : ''}` : ''}
       ${weId ? '<button class="btn small danger" data-remove>Remove from workout</button>' : ''}
     `;
-    bottom.innerHTML = `<button class="btn primary big" data-done>Complete exercise →</button>`;
+    // Start is the obvious next step; Complete only becomes the main button once all sets are done
+    bottom.innerHTML = `<button class="btn ${todo ? '' : 'primary'} big" data-done>Complete exercise →</button>`;
   }
 
   // ----- guided mode: one member and one set at a time -----
@@ -782,6 +786,7 @@ async function logView(mount, wid, mode, id) {
       move(nextTodo(cursor));
     } else if (action === 'stop') {
       commitStep();
+      showList = true;
       move(null);
     }
   }
@@ -820,6 +825,10 @@ async function logView(mount, wid, mode, id) {
     const d = b.dataset;
     if (d.g) return guidedAction(d.g);
     if (b.hasAttribute('data-remove')) return removeExercise();
+    if (b.hasAttribute('data-toggle-list')) {
+      showList = !showList;
+      return render();
+    }
     if (d.sets) {
       // Give every present member the same number of sets; finished sets are never removed
       const n = Math.max(1, rounds() + +d.sets);
