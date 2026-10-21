@@ -336,19 +336,29 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ms-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ms-name { font-weight: 500; }
 /* Sets table: a column per set, kg above reps, so values line up */
+/* Color code: KG in orange, REPS in cream */
 .set-grid {
+  --kg: #e8875f;
   display: grid;
-  grid-template-columns: 40px repeat(var(--n), minmax(0, 52px));
-  gap: 3px 4px;
-  margin-top: 8px;
+  grid-template-columns: 46px repeat(var(--n), minmax(0, 54px));
+  gap: 4px 5px;
+  margin-top: 10px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.sg-label { text-align: left; color: var(--muted); font-size: 12px; align-self: center; }
-.sg-no { color: var(--muted); font-size: 12px; font-weight: 600; padding-bottom: 2px; border-bottom: 1px solid var(--border); }
-.sg-val { font-size: 16px; font-weight: 600; padding: 3px 0; border-radius: 8px; background: rgba(127, 155, 121, 0.16); }
-.sg-no.best { color: var(--cream); }
-.sg-val.best { background: rgba(227, 201, 165, 0.2); color: var(--cream); }
+.sg-label {
+  text-align: left; align-self: center;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+.sg-label.sg-weight { color: var(--kg); }
+.sg-label.sg-reps { color: var(--cream); }
+.sg-no { color: var(--muted); font-size: 11px; font-weight: 600; }
+.sg-val { font-size: 16px; font-weight: 600; line-height: 1; padding: 8px 0; border-radius: 10px; }
+.sg-val.sg-weight { color: var(--kg); background: rgba(232, 135, 95, 0.12); }
+.sg-val.sg-reps { color: var(--cream); background: rgba(227, 201, 165, 0.08); }
+/* A new best: the set number becomes a green badge and its values get a ring */
+.sg-no.best { justify-self: center; padding: 1px 8px; border-radius: 999px; background: var(--green); color: #142012; }
+.sg-val.best { box-shadow: inset 0 0 0 1.5px currentColor; }
 
 .list-item .ex-img { width: 44px; height: 44px; border-radius: 10px; }
 .list-item .ex-img svg { width: 22px; height: 22px; }
@@ -485,6 +495,16 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition: transform 0.25s ease-out, opacity 0.25s; }
 
 /* Past workouts on the home screen */
+.months { display: flex; gap: 8px; overflow-x: auto; margin: -2px -16px 12px; padding: 2px 16px; scrollbar-width: none; }
+.months::-webkit-scrollbar { display: none; }
+.month {
+  flex: none; display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 8px 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--card); color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.month span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--card2); font-size: 12px; }
+.month.on { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); }
+.month.on span { background: rgba(29, 25, 19, 0.15); }
 .list-item.past { gap: 6px; padding: 16px; }
 .past-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .past-stats { color: var(--cream); font-size: 13px; font-weight: 600; white-space: nowrap; }

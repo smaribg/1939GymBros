@@ -52,7 +52,7 @@ function fmtSets(sets) {
 // items: [{ reps, weight, no (set number), best }]
 function setGrid(items) {
   const hasKg = items.some(x => x.weight != null && x.weight !== '');
-  const row = (label, f) => `<span class="sg-label">${label}</span>${items.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} ${x.best ? 'best' : ''}">${esc(x[f] ?? '–')}</span>`).join('')}`;
+  const row = (label, f) => `<span class="sg-label sg-${f}">${label}</span>${items.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} sg-${f} ${x.best ? 'best' : ''}">${esc(x[f] ?? '–')}</span>`).join('')}`;
   return `
     <div class="set-grid" style="--n:${items.length}">
       ${row('Set', 'no')}
@@ -238,17 +238,24 @@ async function router() {
 
 // ---------- views ----------
 
+let pastMonth = null; // month picked on the home screen ("2026-10"), kept while moving around the app
+
 async function home(mount) {
   const [workouts, members] = await Promise.all([
     sb.from('workouts')
       .select('id, started_at, finished_at, workout_exercises(created_at, exercises(name), entries(absent, sets, members(name, created_at)))')
       .order('started_at', { ascending: false })
-      .limit(100)
+      .limit(500)
       .then(check),
     sb.from('members').select('id').eq('active', true).then(check),
   ]);
   const active = workouts.find(w => !w.finished_at);
   const past = workouts.filter(w => w.finished_at);
+  // Past workouts are shown one month at a time, newest month first
+  const monthOf = w => { const d = new Date(w.started_at); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  const monthName = k => new Date(`${k}-15T12:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const months = [...new Set(past.map(monthOf))];
+  if (!months.includes(pastMonth)) pastMonth = months[0];
   const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(' · ') || 'No exercises';
   const totals = w => {
     const sets = w.workout_exercises.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
@@ -274,8 +281,15 @@ async function home(mount) {
       <a class="btn block grow tile" href="#/exercises">🏋️ Exercises</a>
     </div>
     <h2>Past workouts</h2>
-    ${past.length
-      ? `<div class="list">${past.map(w => {
+    ${months.length ? `<div class="months">${months.map(k => `
+      <button class="month ${k === pastMonth ? 'on' : ''}" data-month="${k}">${monthName(k)}<span>${past.filter(w => monthOf(w) === k).length}</span></button>`).join('')}</div>` : ''}
+    <div data-past></div>
+  `);
+
+  function renderPast() {
+    const shown = past.filter(w => monthOf(w) === pastMonth);
+    v.querySelector('[data-past]').innerHTML = shown.length
+      ? `<div class="list">${shown.map(w => {
           const t = totals(w);
           return `
           <a class="list-item past" href="#/w/${w.id}">
@@ -287,8 +301,17 @@ async function home(mount) {
             ${people(w).length ? `<span class="bubbles">${people(w).map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</span>` : ''}
           </a>`;
         }).join('')}</div>`
-      : '<p class="muted">No workouts yet.</p>'}
-  `);
+      : '<p class="muted">No workouts yet.</p>';
+  }
+  renderPast();
+
+  v.querySelector('.months')?.addEventListener('click', e => {
+    const b = e.target.closest('[data-month]');
+    if (!b) return;
+    pastMonth = b.dataset.month;
+    v.querySelectorAll('[data-month]').forEach(x => x.classList.toggle('on', x === b));
+    renderPast();
+  });
 
   v.querySelector('[data-start]')?.addEventListener('click', act(async () => {
     if (!await requireAuth()) return;
