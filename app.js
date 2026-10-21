@@ -48,6 +48,19 @@ function fmtSets(sets) {
   return same ? `${sets.length} × ${fmtSet(sets[0])}` : sets.map(fmtSet).join(' · ');
 }
 
+// Sets as a small table, one column per set with kg above reps, so the numbers line up and are easy to compare.
+// items: [{ reps, weight, no (set number), best }]
+function setGrid(items) {
+  const hasKg = items.some(x => x.weight != null && x.weight !== '');
+  const row = (label, f) => `<span class="sg-label">${label}</span>${items.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} ${x.best ? 'best' : ''}">${esc(x[f] ?? '–')}</span>`).join('')}`;
+  return `
+    <div class="set-grid" style="--n:${items.length}">
+      ${row('Set', 'no')}
+      ${hasKg ? row('kg', 'weight') : ''}
+      ${row('Reps', 'reps')}
+    </div>`;
+}
+
 const draft = {
   load(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
   save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ } },
@@ -438,7 +451,7 @@ async function memberView(mount, id) {
           ${[...g.sessions].reverse().map(s => `
             <div class="ms-row">
               <span class="muted small">${fmtDate(s.t)}</span>
-              <div class="set-chips">${s.sets.map((x, i) => `<span class="set-chip"><b>${i + 1}</b>${esc(fmtKgReps(x))}</span>`).join('')}</div>
+              ${setGrid(s.sets.map((x, i) => ({ ...x, no: i + 1 })))}
             </div>`).join('')}
         </details>
       </div>`;
@@ -584,7 +597,7 @@ async function workoutView(mount, wid) {
           <span class="ms-name">${esc(e.members.name)}</span>
           <span class="muted small">${e.sets.length ? `${e.sets.length} set${e.sets.length === 1 ? '' : 's'}` : 'No sets yet'}</span>
         </div>
-        ${e.sets.length ? `<div class="set-chips">${e.sets.map((x, i) => `<span class="set-chip"><b>${i + 1}</b>${esc(fmtKgReps(x))}</span>`).join('')}</div>` : ''}
+        ${e.sets.length ? setGrid(e.sets.map((x, i) => ({ ...x, no: i + 1 }))) : ''}
       </div>`).join('') + (absent.length ? `<div class="ms-row"><div class="ms-head"><span class="muted small">Not here: ${esc(absent.join(', '))}</span></div></div>` : '');
   }
   const isDone = we => we.entries.length && we.entries.every(e => e.absent || e.sets.length);
@@ -1024,7 +1037,7 @@ async function logView(mount, wid, mode, id) {
       return `
         <div class="sheet-row">
           <div class="ms-head"><b>${esc(m.name)}</b>${best ? '<span class="best-tag">⬆ New best</span>' : ''}</div>
-          <div class="set-chips">${done.map(({ x, j }) => `<span class="set-chip ${beats(x, ls[j]) ? 'best' : ''}"><b>${j + 1}</b>${esc(fmtKgReps(x))}</span>`).join('')}</div>
+          ${setGrid(done.map(({ x, j }) => ({ ...x, no: j + 1, best: beats(x, ls[j]) })))}
         </div>`;
     }).join('');
     const absent = members.filter(m => state[m.id].absent).map(m => m.name);

@@ -335,27 +335,20 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ms-row { padding: 10px 0 0; margin-top: 10px; border-top: 1px solid var(--border); }
 .ms-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ms-name { font-weight: 500; }
-.set-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.set-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 4px;
-  border-radius: 10px;
-  background: rgba(127, 155, 121, 0.22);
-  font-size: 14px;
+/* Sets table: a column per set, kg above reps, so values line up */
+.set-grid {
+  display: grid;
+  grid-template-columns: 40px repeat(var(--n), minmax(0, 52px));
+  gap: 3px 4px;
+  margin-top: 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
-.set-chip b {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: var(--green);
-  color: #142012;
-  font-size: 13px;
-}
+.sg-label { text-align: left; color: var(--muted); font-size: 12px; align-self: center; }
+.sg-no { color: var(--muted); font-size: 12px; font-weight: 600; padding-bottom: 2px; border-bottom: 1px solid var(--border); }
+.sg-val { font-size: 16px; font-weight: 600; padding: 3px 0; border-radius: 8px; background: rgba(127, 155, 121, 0.16); }
+.sg-no.best { color: var(--cream); }
+.sg-val.best { background: rgba(227, 201, 165, 0.2); color: var(--cream); }
 
 .list-item .ex-img { width: 44px; height: 44px; border-radius: 10px; }
 .list-item .ex-img svg { width: 22px; height: 22px; }
@@ -470,8 +463,6 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .stat b { font-size: 26px; font-weight: 600; color: var(--cream); }
 .stat span { color: var(--muted); font-size: 13px; }
 .best-tag { color: var(--cream); font-size: 13px; font-weight: 600; }
-.set-chip.best { background: rgba(227, 201, 165, 0.18); box-shadow: inset 0 0 0 1px var(--cream); }
-.set-chip.best b { background: var(--cream); color: var(--cream-ink); }
 
 /* Little message at the top, e.g. a new best */
 .toast {
