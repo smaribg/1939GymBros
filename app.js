@@ -179,6 +179,7 @@ let leaveHook = null; // set by a view that must finish saving before the next p
 const routes = [
   [/^$/, home],
   [/^members$/, membersView],
+  [/^m\/([\w-]+)$/, memberView],
   [/^exercises$/, exercisesView],
   [/^w\/([\w-]+)$/, workoutView],
   [/^w\/([\w-]+)\/pick$/, pickView],
@@ -231,7 +232,11 @@ async function home(mount) {
   ]);
   const active = workouts.find(w => !w.finished_at);
   const past = workouts.filter(w => w.finished_at);
-  const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(', ') || 'No exercises';
+  const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(' · ') || 'No exercises';
+  const totals = w => {
+    const sets = w.workout_exercises.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
+    return { sets: sets.length, kg: Math.round(sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0)) };
+  };
   // Everyone who logged at least one set, in the usual member order
   const people = w => {
     const byName = new Map();
@@ -248,17 +253,23 @@ async function home(mount) {
       ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
       : `<button class="btn cream big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
     <div class="row nowrap">
-      <a class="btn block grow" href="#/members">Members (${members.length})</a>
-      <a class="btn block grow" href="#/exercises">Exercises</a>
+      <a class="btn block grow tile" href="#/members">👥 Members (${members.length})</a>
+      <a class="btn block grow tile" href="#/exercises">🏋️ Exercises</a>
     </div>
     <h2>Past workouts</h2>
     ${past.length
-      ? `<div class="list">${past.map(w => `
-          <a class="list-item" href="#/w/${w.id}">
-            <b>${fmtDate(w.started_at)}</b>
-            <span class="muted">${esc(summary(w))}</span>
-            ${people(w).length ? `<span class="people">👥 ${esc(people(w).join(', '))}</span>` : ''}
-          </a>`).join('')}</div>`
+      ? `<div class="list">${past.map(w => {
+          const t = totals(w);
+          return `
+          <a class="list-item past" href="#/w/${w.id}">
+            <span class="past-head">
+              <b>${fmtDate(w.started_at)}</b>
+              ${t.sets ? `<span class="past-stats">${t.sets} sets${t.kg ? ` · ${t.kg.toLocaleString('en-GB')} kg` : ''}</span>` : ''}
+            </span>
+            <span class="muted small">${esc(summary(w))}</span>
+            ${people(w).length ? `<span class="bubbles">${people(w).map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</span>` : ''}
+          </a>`;
+        }).join('')}</div>`
       : '<p class="muted">No workouts yet.</p>'}
   `);
 
@@ -270,24 +281,36 @@ async function home(mount) {
 }
 
 async function membersView(mount) {
-  const members = check(await sb.from('members').select('id, name').eq('active', true).order('created_at'));
+  const [members, entries] = await Promise.all([
+    sb.from('members').select('id, name').eq('active', true).order('created_at').then(check),
+    sb.from('entries').select('member_id, sets, workout_exercises(workout_id)').eq('absent', false).then(check),
+  ]);
+  // Workouts each member logged at least one set in
+  const sessions = new Map();
+  for (const e of entries) {
+    if (!e.sets.length || !e.workout_exercises) continue;
+    if (!sessions.has(e.member_id)) sessions.set(e.member_id, new Set());
+    sessions.get(e.member_id).add(e.workout_exercises.workout_id);
+  }
+  const count = id => sessions.get(id)?.size || 0;
   const v = mount(`
     <a class="back" href="#/">‹ Home</a>
     <h1>Members</h1>
     <p class="sub">Everyone who trains together</p>
     <div class="list">
       ${members.map(m => `
-        <div class="list-item row">
-          <input class="grow" value="${esc(m.name)}" data-rename="${m.id}" aria-label="Name">
-          <button class="btn small danger" data-remove="${m.id}">Remove</button>
-        </div>`).join('') || '<p class="muted">No members yet.</p>'}
+        <a class="list-item link-row" href="#/m/${m.id}">
+          <span class="grow">${esc(m.name)}</span>
+          <span class="count-pill">${count(m.id)} session${count(m.id) === 1 ? '' : 's'}</span>
+          <span class="muted">›</span>
+        </a>`).join('') || '<p class="muted">No members yet.</p>'}
     </div>
     <h2>Add member</h2>
     <form class="row" data-add>
       <input class="grow" placeholder="Name" autocomplete="off" required>
       <button class="btn primary">Add</button>
     </form>
-    <p class="muted">Removed members keep their history but stop showing up in new workouts.</p>
+    <p class="muted">Tap a member to see their progress, rename or remove them.</p>
   `);
 
   v.querySelector('[data-add]').addEventListener('submit', act(async e => {
@@ -297,16 +320,182 @@ async function membersView(mount) {
     check(await sb.from('members').insert({ name }));
     router();
   }));
-  v.querySelectorAll('[data-rename]').forEach(input => input.addEventListener('change', act(async () => {
-    const name = input.value.trim();
+}
+
+// Round-numbered y-axis ticks covering lo..hi
+function niceTicks(lo, hi, count = 3) {
+  if (lo === hi) { lo = Math.max(0, lo - 1); hi += 1; }
+  const raw = (hi - lo) / count;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw);
+  const ticks = [];
+  for (let t = Math.floor(lo / step) * step; ; t += step) {
+    ticks.push(+t.toFixed(4));
+    if (t >= hi) return ticks;
+  }
+}
+
+// Line chart of one number over time. points: [{ t, v, label }]; returns the svg and each point's x for tap lookups
+function lineChart(points, unit) {
+  const W = 320, H = 150, L = 36, R = 16, T = 18, B = 22;
+  const t0 = points[0].t, t1 = points[points.length - 1].t;
+  const ticks = niceTicks(Math.min(...points.map(p => p.v)), Math.max(...points.map(p => p.v)));
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const x = t => L + (t1 === t0 ? 0.5 : (t - t0) / (t1 - t0)) * (W - L - R);
+  const y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const xs = points.map(p => x(p.t));
+  const end = points[points.length - 1];
+  const svg = `
+    <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(unit)} over time">
+      ${ticks.map(t => `
+        <line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/>
+        <text class="axis" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${t}</text>`).join('')}
+      <text class="axis" x="${xs[0]}" y="${H - 4}" text-anchor="start">${fmtShort(t0)}</text>
+      ${points.length > 1 ? `<text class="axis" x="${xs[xs.length - 1]}" y="${H - 4}" text-anchor="end">${fmtShort(t1)}</text>` : ''}
+      <line class="cross" x1="0" x2="0" y1="${T - 6}" y2="${H - B}" visibility="hidden"/>
+      <path class="line" d="${points.map((p, k) => `${k ? 'L' : 'M'}${xs[k]},${y(p.v)}`).join('')}"/>
+      ${points.map((p, k) => `<circle class="pt" data-k="${k}" cx="${xs[k]}" cy="${y(p.v)}" r="4.5"/>`).join('')}
+      <text class="end-label" x="${xs[xs.length - 1]}" y="${y(end.v) - 10}" text-anchor="end">${end.v} ${esc(unit)}</text>
+    </svg>`;
+  return { svg, xs, W };
+}
+
+async function memberView(mount, id) {
+  const [member, entries] = await Promise.all([
+    sb.from('members').select('id, name, active').eq('id', id).maybeSingle().then(check),
+    sb.from('entries')
+      .select('sets, workout_exercises(created_at, workout_id, exercises(id, name, photo_path))')
+      .eq('member_id', id)
+      .eq('absent', false)
+      .then(check),
+  ]);
+  if (!member) {
+    mount('<a class="back" href="#/members">‹ Members</a><div class="notice">This member doesn’t exist anymore.</div>');
+    return;
+  }
+
+  // Every time they did each exercise, oldest first; the most recently done exercise comes first
+  const byExercise = new Map();
+  for (const e of entries.filter(e => e.sets.length && e.workout_exercises)) {
+    const we = e.workout_exercises;
+    if (!byExercise.has(we.exercises.id)) byExercise.set(we.exercises.id, { exercise: we.exercises, sessions: [] });
+    byExercise.get(we.exercises.id).sessions.push({ t: new Date(we.created_at).getTime(), sets: e.sets });
+  }
+  const groups = [...byExercise.values()];
+  for (const g of groups) g.sessions.sort((a, b) => a.t - b.t);
+  groups.sort((a, b) => b.sessions[b.sessions.length - 1].t - a.sessions[a.sessions.length - 1].t);
+
+  const sets = entries.flatMap(e => e.sets);
+  const kg = sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
+  const workouts = new Set(entries.filter(e => e.sets.length).map(e => e.workout_exercises?.workout_id));
+  // Heaviest set, more reps breaking a tie
+  const topSet = list => list.reduce((best, x) => (!best || beats(x, best) ? x : best), null);
+  const mostReps = list => list.reduce((best, x) => (!best || (x.reps ?? 0) > (best.reps ?? 0) ? x : best), null);
+  const hasKg = g => g.sessions.some(s => s.sets.some(x => x.weight));
+  const metric = new Map(groups.map(g => [g.exercise.id, hasKg(g) ? 'kg' : 'reps']));
+  const charts = new Map();
+
+  function chartHtml(g) {
+    const m = metric.get(g.exercise.id);
+    if (g.sessions.length < 2) return '<p class="muted small">Done once so far. The chart shows up after the next time.</p>';
+    const points = g.sessions.map(s => {
+      const x = m === 'kg' ? topSet(s.sets) : mostReps(s.sets);
+      return { t: s.t, v: (m === 'kg' ? x.weight : x.reps) ?? 0, label: `${fmtShort(s.t)} · ${fmtKgReps(x)}` };
+    });
+    const chart = lineChart(points, m);
+    charts.set(g.exercise.id, { ...chart, points });
+    return `
+      ${hasKg(g) ? `
+        <div class="seg" role="group" aria-label="Show">
+          <button class="${m === 'kg' ? 'on' : ''}" data-metric="kg">Heaviest kg</button>
+          <button class="${m === 'reps' ? 'on' : ''}" data-metric="reps">Most reps</button>
+        </div>` : ''}
+      ${chart.svg}
+      <div class="readout">${esc(points[points.length - 1].label)}</div>`;
+  }
+
+  function cardHtml(g) {
+    const all = g.sessions.flatMap(s => s.sets);
+    const best = hasKg(g) ? topSet(all) : mostReps(all);
+    const lastT = g.sessions[g.sessions.length - 1].t;
+    return `
+      <div class="card progress" data-ex="${g.exercise.id}">
+        <div class="progress-head">
+          ${exImg(g.exercise.photo_path)}
+          <span class="grow col">
+            <span class="ex-title">${esc(g.exercise.name)}</span>
+            <span class="muted small">${g.sessions.length} time${g.sessions.length === 1 ? '' : 's'} · last ${fmtShort(lastT)}</span>
+            <span class="best-tag">Best ${esc(fmtKgReps(best))}</span>
+          </span>
+        </div>
+        <div data-chart>${chartHtml(g)}</div>
+        <details>
+          <summary>Every time</summary>
+          ${[...g.sessions].reverse().map(s => `
+            <div class="ms-row">
+              <span class="muted small">${fmtDate(s.t)}</span>
+              <div class="set-chips">${s.sets.map((x, i) => `<span class="set-chip"><b>${i + 1}</b>${esc(fmtKgReps(x))}</span>`).join('')}</div>
+            </div>`).join('')}
+        </details>
+      </div>`;
+  }
+
+  const v = mount(`
+    <a class="back" href="#/members">‹ Members</a>
+    <h1>${esc(member.name)}</h1>
+    <p class="sub">${member.active ? 'Progress over time' : 'No longer a member'}</p>
+    <div class="stats">
+      <div class="stat"><b>${workouts.size}</b><span>workout${workouts.size === 1 ? '' : 's'}</span></div>
+      <div class="stat"><b>${sets.length}</b><span>sets</span></div>
+      <div class="stat"><b>${Math.round(kg).toLocaleString('en-GB')}</b><span>kg lifted</span></div>
+    </div>
+    <h2>Exercises</h2>
+    ${groups.map(cardHtml).join('') || '<p class="muted">Nothing logged yet.</p>'}
+    <h2>Settings</h2>
+    <div class="list-item row">
+      <input class="grow" value="${esc(member.name)}" data-rename aria-label="Name">
+      ${member.active ? '<button class="btn small danger" data-remove>Remove</button>' : ''}
+    </div>
+    <p class="muted">Removed members keep their history but stop showing up in new workouts.</p>
+  `);
+
+  // Tap or drag along a chart to read any point
+  function pick(chartEl, e) {
+    const card = chartEl.closest('[data-ex]');
+    const c = charts.get(card.dataset.ex);
+    const rect = chartEl.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (c.W / rect.width);
+    let k = 0;
+    c.xs.forEach((x, j) => { if (Math.abs(x - px) < Math.abs(c.xs[k] - px)) k = j; });
+    chartEl.querySelectorAll('.pt').forEach(p => p.classList.toggle('active', +p.dataset.k === k));
+    const cross = chartEl.querySelector('.cross');
+    cross.setAttribute('x1', c.xs[k]);
+    cross.setAttribute('x2', c.xs[k]);
+    cross.setAttribute('visibility', 'visible');
+    card.querySelector('.readout').textContent = c.points[k].label;
+  }
+  v.addEventListener('pointerdown', e => { const c = e.target.closest('.chart'); if (c) pick(c, e); });
+  v.addEventListener('pointermove', e => { const c = e.target.closest('.chart'); if (c && (e.buttons || e.pointerType === 'mouse')) pick(c, e); });
+
+  v.addEventListener('click', e => {
+    const b = e.target.closest('[data-metric]');
+    if (!b) return;
+    const card = b.closest('[data-ex]');
+    metric.set(card.dataset.ex, b.dataset.metric);
+    card.querySelector('[data-chart]').innerHTML = chartHtml(byExercise.get(card.dataset.ex));
+  });
+
+  v.querySelector('[data-rename]').addEventListener('change', act(async e => {
+    const name = e.target.value.trim();
     if (!name || !await requireAuth()) return;
-    check(await sb.from('members').update({ name }).eq('id', input.dataset.rename));
-  })));
-  v.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', act(async () => {
-    if (!confirm('Remove this member?') || !await requireAuth()) return;
-    check(await sb.from('members').update({ active: false }).eq('id', btn.dataset.remove));
-    router();
-  })));
+    check(await sb.from('members').update({ name }).eq('id', id));
+    v.querySelector('h1').textContent = name;
+  }));
+  v.querySelector('[data-remove]')?.addEventListener('click', act(async () => {
+    if (!confirm(`Remove ${member.name}?`) || !await requireAuth()) return;
+    check(await sb.from('members').update({ active: false }).eq('id', id));
+    go('#/members');
+  }));
 }
 
 async function exercisesView(mount) {
@@ -398,10 +587,21 @@ async function workoutView(mount, wid) {
   const participants = we => [...we.entries].sort((a, b) => byCreated(a.members, b.members))
     .filter(e => !e.absent && e.sets.length).map(e => e.members.name);
 
+  const allSets = wes.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
+  const kg = allSets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
+  const people = new Set(wes.flatMap(we => participants(we)));
+  const statsHtml = `
+    <div class="stats">
+      <div class="stat"><b>${wes.length}</b><span>exercise${wes.length === 1 ? '' : 's'}</span></div>
+      <div class="stat"><b>${allSets.length}</b><span>sets</span></div>
+      <div class="stat"><b>${Math.round(kg).toLocaleString('en-GB')}</b><span>kg lifted</span></div>
+    </div>`;
+
   const v = mount(`
     <a class="back" href="#/">‹ Home</a>
     <h1>${w.finished_at ? 'Workout' : 'Today’s Workout'}</h1>
-    <p class="sub">${fmtDate(w.started_at)}${wes.length ? ` · ${wes.length} exercise${wes.length === 1 ? '' : 's'}` : ''}</p>
+    <p class="sub">${fmtDate(w.started_at)}${people.size ? ` · ${people.size} member${people.size === 1 ? '' : 's'}` : ''}</p>
+    ${allSets.length ? statsHtml : ''}
     ${wes.map(we => `
       <div class="card ex-summary">
         <button class="ex-summary-head" data-expand>
@@ -431,17 +631,10 @@ async function workoutView(mount, wid) {
   }));
 
   function workoutSummary() {
-    const sets = wes.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
-    const kg = sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
-    const people = new Set(wes.flatMap(we => participants(we)));
     return `
       <div class="sheet-title">Workout finished 🎉</div>
       <p class="sub">${fmtDate(w.started_at)} · ${people.size} member${people.size === 1 ? '' : 's'}</p>
-      <div class="stats">
-        <div class="stat"><b>${wes.length}</b><span>exercise${wes.length === 1 ? '' : 's'}</span></div>
-        <div class="stat"><b>${sets.length}</b><span>sets</span></div>
-        <div class="stat"><b>${Math.round(kg).toLocaleString('en-GB')}</b><span>kg lifted</span></div>
-      </div>
+      ${statsHtml}
       ${wes.map(we => `
         <div class="sheet-row">
           <b>${esc(we.exercises.name)}</b>
@@ -570,11 +763,17 @@ async function logView(mount, wid, mode, id) {
     exercise = check(await sb.from('exercises').select('id, name, photo_path').eq('id', id).single());
   }
 
-  const [allMembers, last] = await Promise.all([
+  const [allMembers, last, siblings] = await Promise.all([
     sb.from('members').select('id, name, active').order('created_at').then(check),
     lastTime(exercise.id, wid, weCreated),
+    sb.from('workout_exercises').select('id, created_at, entries(member_id, absent)').eq('workout_id', wid).then(check),
   ]);
   const existingBy = new Map(existing.map(e => [e.member_id, e]));
+  // Whoever was not here in the latest other exercise of this workout is still not here
+  const wasAbsent = new Map();
+  for (const we of siblings.filter(x => x.id !== weId).sort(byCreated)) {
+    for (const e of we.entries) wasAbsent.set(e.member_id, e.absent);
+  }
   const members = allMembers.filter(m => m.active || existingBy.has(m.id));
   const memberById = new Map(members.map(m => [m.id, m]));
   // A set in the form: values as typed, plus whether it has been confirmed (only confirmed sets are saved)
@@ -600,15 +799,22 @@ async function logView(mount, wid, mode, id) {
     state[m.id] = ex && (ex.absent || ex.sets.length)
       ? { absent: ex.absent, sets: ex.sets.map(x => toInput(x, true)) }
       // Start from what they did last time; they just confirm or adjust each set
-      : { absent: false, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
+      : { absent: wasAbsent.get(m.id) === true, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
   }
-  // Guided flow: members in random order, everyone does set 1, then everyone does set 2, ...
-  let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
-  if (order) order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
+  // Guided flow: members take turns, each doing their next set. The order is shuffled once per workout
+  // (on this phone) and kept for every exercise after that.
+  const orderKey = `order:${wid}`;
+  let order = saved.order || draft.load(orderKey);
+  if (order) {
+    order = order.filter(mid => state[mid]);
+    order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
+  }
   let cursor = order ? saved.cursor || null : null; // { r: set index, i: index in order } while guided
+  let resume = saved.resume || null; // { r, mid }: where the guided flow was last, so Continue picks up there
   let showList = null; // null: closed while there are sets to do, open once everything is done
   const persist = () => {
-    draft.save(draftKey, { members: state, order, cursor });
+    draft.save(draftKey, { members: state, order, cursor, resume });
+    if (order) draft.save(orderKey, order);
     scheduleSave();
   };
 
@@ -640,7 +846,7 @@ async function logView(mount, wid, mode, id) {
       history.replaceState(null, '', `#/w/${wid}/edit/${weId}`);
       draft.clear(draftKey);
       draftKey = `draft2:${wid}:${weId}`;
-      draft.save(draftKey, { members: state, order, cursor });
+      draft.save(draftKey, { members: state, order, cursor, resume });
     }
     const rows = members.map(m => {
       const s = state[m.id];
@@ -664,10 +870,26 @@ async function logView(mount, wid, mode, id) {
     for (let r = 0; r < rounds(); r++) for (let i = 0; i < order.length; i++) if (eligible(r, i)) list.push({ r, i });
     return list;
   }
-  // Next unfilled set after `from`, wrapping around to any earlier one that was skipped
+  // Taking turns: the next member in the order after `from` who has a set left does their first unfinished one.
+  // So someone who shows up late (and goes to the back of the order) does set 1 when it's their turn.
   function nextTodo(from) {
-    const todo = slots().filter(p => isTodo(p) && !same(p, from));
-    return (from && todo.find(p => after(p, from))) || todo[0] || null;
+    const start = from ? from.i + 1 : 0;
+    for (let k = 0; k < order.length; k++) {
+      const i = (start + k) % order.length;
+      const s = state[order[i]];
+      if (!s || s.absent) continue;
+      const r = s.sets.findIndex(x => !x.done);
+      if (r >= 0 && !same({ r, i }, from)) return { r, i };
+    }
+    return null;
+  }
+
+  // Once a set is confirmed, the next one starts from those reps, or last time's reps for it if that was more
+  function carryReps(mid, j) {
+    const sets = state[mid].sets;
+    const next = sets[j + 1];
+    if (!next || next.done || next.edited) return;
+    next.reps = String(Math.max(num(sets[j].reps) ?? 0, last.get(mid)?.sets[j + 1]?.reps ?? 0));
   }
   const hasTodo = () => members.some(m => !state[m.id].absent && state[m.id].sets.some(s => !s.done));
 
@@ -818,7 +1040,6 @@ async function logView(mount, wid, mode, id) {
     const m = memberById.get(order[i]);
     const s = state[m.id];
     const ls = last.get(m.id)?.sets || [];
-    const inRound = slots().filter(p => p.r === r);
     const next = nextTodo(cursor);
     const isFirst = same(slots()[0], cursor);
 
@@ -846,7 +1067,7 @@ async function logView(mount, wid, mode, id) {
 
     body.innerHTML = `
       <div class="step">
-        <div class="step-meta">Set ${r + 1} · person ${inRound.findIndex(p => p.i === i) + 1} of ${inRound.length}</div>
+        <div class="step-meta">Set ${r + 1} of ${s.sets.length}</div>
         <div class="step-name">${esc(m.name)}</div>
         <div class="set-head"><span>Set</span><span>Previous</span><span>kg</span><span>Reps</span><span>${TICK}</span></div>
         ${s.sets.map(row).join('')}
@@ -873,6 +1094,7 @@ async function logView(mount, wid, mode, id) {
     const reps = body.querySelector('[data-step] [data-f="reps"]');
     const weight = body.querySelector('[data-step] [data-f="weight"]');
     const set = state[order[cursor.i]].sets[cursor.r];
+    if (set.reps !== reps.value.trim()) set.edited = true;
     set.reps = reps.value.trim();
     set.weight = weight.value.trim();
     if (markDone && set.reps !== '') set.done = true;
@@ -881,7 +1103,8 @@ async function logView(mount, wid, mode, id) {
 
   function move(to) {
     cursor = to;
-    if (!cursor) window.scrollTo(0, 0);
+    if (cursor) resume = { r: cursor.r, mid: order[cursor.i] };
+    else window.scrollTo(0, 0);
     persist();
     render();
   }
@@ -890,7 +1113,9 @@ async function logView(mount, wid, mode, id) {
     const mid = cursor && order[cursor.i];
     if (action === 'start') {
       if (!order) order = shuffle(members.map(m => m.id));
-      move(nextTodo(null));
+      // Continue where we left off
+      const at = resume && order.includes(resume.mid) ? { r: resume.r, i: order.indexOf(resume.mid) } : null;
+      move(at && isTodo(at) ? at : nextTodo(at));
     } else if (action === 'round') {
       // Add a set for everyone who did the full number of sets
       const n = rounds();
@@ -908,6 +1133,7 @@ async function logView(mount, wid, mode, id) {
         return;
       }
       cheerIfBest(mid, cursor.r);
+      carryReps(mid, cursor.r);
       move(nextTodo(cursor));
     } else if (action === 'back') {
       commitStep();
@@ -932,7 +1158,9 @@ async function logView(mount, wid, mode, id) {
     const t = e.target;
     t.classList.remove('invalid');
     if (!t.dataset.m) return;
-    state[t.dataset.m].sets[+t.dataset.i][t.dataset.f] = t.value;
+    const set = state[t.dataset.m].sets[+t.dataset.i];
+    set[t.dataset.f] = t.value;
+    if (t.dataset.f === 'reps') set.edited = true;
     persist();
   });
 
@@ -977,6 +1205,8 @@ async function logView(mount, wid, mode, id) {
       const s = state[d.absent];
       s.absent = !s.absent;
       if (!s.absent && !s.sets.length) s.sets.push(copySet(last.get(d.absent)?.sets[0]));
+      // Latecomers go to the back of the queue
+      if (!s.absent && order) order = [...order.filter(mid => mid !== d.absent), d.absent];
     } else if (d.addset) {
       const sets = state[d.addset].sets;
       sets.push(copySet(last.get(d.addset)?.sets[sets.length] || sets[sets.length - 1])); // last time's set, or a copy of the previous one
@@ -991,7 +1221,10 @@ async function logView(mount, wid, mode, id) {
         return;
       }
       set.done = !set.done;
-      if (set.done) cheerIfBest(d.tick, +d.i);
+      if (set.done) {
+        cheerIfBest(d.tick, +d.i);
+        carryReps(d.tick, +d.i);
+      }
     } else {
       return;
     }
