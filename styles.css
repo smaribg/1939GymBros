@@ -105,7 +105,7 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
 .btn.big small { font-size: 13px; }
 .btn.block { width: 100%; margin-bottom: 12px; }
 /* Home screen's Members / Exercises: stand out from the dark background */
-.btn.tile { min-height: 56px; background: linear-gradient(160deg, #2a1a12, #1d1612); border-color: var(--kg-border); color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; }
+.btn.tile { min-height: 56px; color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; } /* background: see .stat.orange */
 .btn.tile:active { filter: brightness(1.15); }
 .btn:disabled { opacity: 0.45; }
 
@@ -512,9 +512,23 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .stat-text { display: flex; flex-direction: column; min-width: 0; }
 .stat b { font-size: 26px; font-weight: 700; line-height: 1.05; color: var(--text); white-space: nowrap; }
 .stat span { color: var(--muted); font-size: 13px; }
-.stat.orange { background: linear-gradient(160deg, #2e1b12, #1f1713); border-color: #45261a; }
+/* Tinted cards: the color glows from the top-left corner and fades into the normal dark grey,
+   border included (an inner padding-box layer over a border-box layer) */
+.stat.orange, .btn.tile {
+  border-color: transparent;
+  background:
+    radial-gradient(140% 120% at 0% 0%, rgba(247, 131, 74, 0.42), rgba(247, 131, 74, 0.1) 45%, transparent 78%) padding-box,
+    linear-gradient(#191818, #191818) padding-box,
+    radial-gradient(130% 130% at 0% 0%, #b4592f, #3a2a22 45%, #2a2828 70%) border-box;
+}
 .stat.orange .stat-icon { background: #3a2216; color: var(--accent); }
-.stat.green { background: linear-gradient(160deg, #20261b, #1a1d18); border-color: #2c3424; }
+.stat.green {
+  border-color: transparent;
+  background:
+    radial-gradient(140% 120% at 0% 0%, rgba(167, 183, 119, 0.32), rgba(167, 183, 119, 0.08) 45%, transparent 78%) padding-box,
+    linear-gradient(#191818, #191818) padding-box,
+    radial-gradient(130% 130% at 0% 0%, #6f7d4c, #343a2a 45%, #2a2828 70%) border-box;
+}
 .stat.green .stat-icon { background: #2a3022; color: #a7b777; }
 /* Phones: icon above the number so big numbers fit */
 @media (max-width: 520px) {
