@@ -36,7 +36,19 @@
     </form>
   </dialog>
 
+  <!-- Summary shown after completing an exercise or a workout -->
+  <dialog id="sheet" class="sheet">
+    <canvas id="sheet-confetti"></canvas>
+    <form method="dialog">
+      <div id="sheet-body"></div>
+      <button class="btn primary big">Close</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

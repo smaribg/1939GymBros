@@ -54,6 +54,55 @@ const draft = {
   clear(key) { try { localStorage.removeItem(key); } catch { /* ignore */ } },
 };
 
+// ---------- celebrations ----------
+
+const CONFETTI_COLORS = ['#e3c9a5', '#b9644a', '#7f9b79', '#e8a23a', '#f1ebe2'];
+let sheetConfetti = null;
+
+// Confetti; the sheet has its own canvas because a modal dialog sits above everything else on the page
+function celebrate(big, inSheet) {
+  if (typeof confetti !== 'function') return;
+  const fire = inSheet ? (sheetConfetti ??= confetti.create($('#sheet-confetti'), { resize: true })) : confetti;
+  const base = { colors: CONFETTI_COLORS, disableForReducedMotion: true };
+  if (!big) {
+    fire({ ...base, particleCount: 70, spread: 70, startVelocity: 38, origin: { y: 0.65 } });
+    return;
+  }
+  fire({ ...base, particleCount: 150, spread: 100, origin: { y: 0.55 } });
+  setTimeout(() => {
+    fire({ ...base, particleCount: 70, angle: 60, spread: 65, origin: { x: 0, y: 0.7 } });
+    fire({ ...base, particleCount: 70, angle: 120, spread: 65, origin: { x: 1, y: 0.7 } });
+  }, 300);
+}
+
+let toastTimer = null;
+function toast(text) {
+  const el = $('#toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+// A set beats last time's same set if it's heavier, or the same weight for more reps
+function beats(x, prev) {
+  if (!prev) return false;
+  const w = num(x.weight) ?? 0, pw = prev.weight ?? 0;
+  return w > pw || (w === pw && (num(x.reps) ?? 0) > (prev.reps ?? 0));
+}
+
+// Bottom sheet with a Close button; resolves once it's closed
+function showSheet(html) {
+  const dlg = $('#sheet');
+  $('#sheet-body').innerHTML = html;
+  dlg.scrollTop = 0;
+  return new Promise(resolve => {
+    dlg.onclose = () => { dlg.onclose = null; resolve(); };
+    dlg.showModal();
+    celebrate(true, true);
+  });
+}
+
 // ---------- exercise photos ----------
 
 const photoUrl = path => sb.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
@@ -311,7 +360,11 @@ async function workoutView(mount, wid) {
   const w = check(await sb.from('workouts')
     .select('id, started_at, finished_at, workout_exercises(id, created_at, exercises(name, photo_path), entries(absent, sets, members(name, created_at)))')
     .eq('id', wid)
-    .single());
+    .maybeSingle());
+  if (!w) {
+    mount('<div class="notice">This workout doesn’t exist anymore.</div><a class="btn" href="#/">Home</a>');
+    return;
+  }
   const wes = [...w.workout_exercises].sort(byCreated);
 
   // One row per member who was there: reps above kg for each set; absent members on one line
@@ -328,36 +381,68 @@ async function workoutView(mount, wid) {
       </div>`).join('') + (absent.length ? `<div class="ms-row"><div class="ms-head"><span class="muted small">Not here: ${esc(absent.join(', '))}</span></div></div>` : '');
   }
   const isDone = we => we.entries.length && we.entries.every(e => e.absent || e.sets.length);
-  const setCount = we => {
-    const n = we.entries.filter(e => !e.absent).length;
-    return `${n} member${n === 1 ? '' : 's'}`;
-  };
+  const participants = we => [...we.entries].sort((a, b) => byCreated(a.members, b.members))
+    .filter(e => !e.absent && e.sets.length).map(e => e.members.name);
 
   const v = mount(`
     <a class="back" href="#/">‹ Home</a>
     <h1>${w.finished_at ? 'Workout' : 'Today’s Workout'}</h1>
     <p class="sub">${fmtDate(w.started_at)}${wes.length ? ` · ${wes.length} exercise${wes.length === 1 ? '' : 's'}` : ''}</p>
     ${wes.map(we => `
-      <a class="card ex-summary" href="#/w/${wid}/edit/${we.id}">
-        <div class="ex-summary-head">
+      <div class="card ex-summary">
+        <button class="ex-summary-head" data-expand>
           ${exImg(we.exercises.photo_path)}
-          <div class="grow">
-            <div class="ex-title">${esc(we.exercises.name)}</div>
-            <span class="muted">${setCount(we)}</span>
-          </div>
+          <span class="grow col">
+            <span class="ex-title">${esc(we.exercises.name)}</span>
+            <span class="muted small">${esc(participants(we).join(', ')) || 'No sets yet'}</span>
+          </span>
           <span class="check ${isDone(we) ? 'done' : ''}"></span>
+          <span class="chev">▾</span>
+        </button>
+        <div class="ex-details" hidden>
+          ${memberRows(we)}
+          <a class="btn small" href="#/w/${wid}/edit/${we.id}" style="margin-top:12px">Open exercise</a>
         </div>
-        ${memberRows(we)}
-      </a>`).join('') || '<p class="muted">No exercises yet.</p>'}
+      </div>`).join('') || '<p class="muted">No exercises yet.</p>'}
     <a class="btn cream big" href="#/w/${wid}/pick">+ Add exercise</a>
     ${w.finished_at ? '' : '<button class="btn primary block" data-finish>Finish workout</button>'}
     <button class="btn small danger" data-delete>Delete workout</button>
   `);
 
+  // Tap an exercise to show or hide its sets
+  v.querySelectorAll('[data-expand]').forEach(head => head.addEventListener('click', () => {
+    const details = head.nextElementSibling;
+    details.hidden = !details.hidden;
+    head.closest('.ex-summary').classList.toggle('open', !details.hidden);
+  }));
+
+  function workoutSummary() {
+    const sets = wes.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
+    const kg = sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
+    const people = new Set(wes.flatMap(we => participants(we)));
+    return `
+      <div class="sheet-title">Workout finished 🎉</div>
+      <p class="sub">${fmtDate(w.started_at)} · ${people.size} member${people.size === 1 ? '' : 's'}</p>
+      <div class="stats">
+        <div class="stat"><b>${wes.length}</b><span>exercise${wes.length === 1 ? '' : 's'}</span></div>
+        <div class="stat"><b>${sets.length}</b><span>sets</span></div>
+        <div class="stat"><b>${Math.round(kg).toLocaleString('en-GB')}</b><span>kg lifted</span></div>
+      </div>
+      ${wes.map(we => `
+        <div class="sheet-row">
+          <b>${esc(we.exercises.name)}</b>
+          <span class="muted small">${esc(participants(we).join(', ')) || 'No sets'}</span>
+        </div>`).join('')}`;
+  }
+
   v.querySelector('[data-finish]')?.addEventListener('click', act(async () => {
     if (!await requireAuth()) return;
-    if (wes.length) check(await sb.from('workouts').update({ finished_at: new Date().toISOString() }).eq('id', wid));
-    else check(await sb.from('workouts').delete().eq('id', wid)); // nothing logged, don't keep an empty workout
+    if (!wes.length) {
+      check(await sb.from('workouts').delete().eq('id', wid)); // nothing logged, don't keep an empty workout
+      return go('#/');
+    }
+    check(await sb.from('workouts').update({ finished_at: new Date().toISOString() }).eq('id', wid));
+    await showSheet(workoutSummary());
     go('#/');
   }));
   v.querySelector('[data-delete]').addEventListener('click', act(async () => {
@@ -507,7 +592,7 @@ async function logView(mount, wid, mode, id) {
   let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
   if (order) order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
   let cursor = order ? saved.cursor || null : null; // { r: set index, i: index in order } while guided
-  let showList = false; // the full member list is tucked away behind a button
+  let showList = null; // null: closed while there are sets to do, open once everything is done
   const persist = () => {
     draft.save(draftKey, { members: state, order, cursor });
     scheduleSave();
@@ -650,6 +735,8 @@ async function logView(mount, wid, mode, id) {
       </div>`;
   }
 
+  const listOpen = () => showList ?? (!hasTodo() && members.some(m => state[m.id].sets.some(x => x.done)));
+
   function renderList() {
     const anyDone = members.some(m => state[m.id].sets.some(x => x.done));
     const todo = hasTodo();
@@ -665,15 +752,48 @@ async function logView(mount, wid, mode, id) {
       </div>
       ${todo
         ? `<button class="btn cream big" data-g="start">▶ ${anyDone ? 'Continue' : 'Start'}<small>One person at a time, set by set</small></button>`
-        : anyDone ? '<div class="notice row"><span class="grow">All sets done 💪</span><button class="btn small" data-g="round">+ Another round</button></div>' : ''}
-      <button class="btn block" data-toggle-list>${showList ? 'Hide sets ▴' : `Show all sets ▾<small>${present.length} here${absent.length ? `, ${absent.length} not here` : ''}</small>`}</button>
-      ${showList ? `
+        : anyDone ? `
+          <div class="all-done">
+            <span class="all-done-icon">${TICK}</span>
+            <span class="grow col"><b>All sets done!</b><span>Nice work, everyone 💪</span></span>
+            <button class="btn small" data-g="round">+ Round</button>
+          </div>` : ''}
+      <button class="btn block" data-toggle-list>${listOpen() ? 'Hide sets ▴' : `Show all sets ▾<small>${present.length} here${absent.length ? `, ${absent.length} not here` : ''}</small>`}</button>
+      ${listOpen() ? `
         ${present.map(cardHtml).join('')}
         ${absent.length ? `<h2>Not here</h2>${absent.map(cardHtml).join('')}` : ''}` : ''}
       ${weId ? '<button class="btn small danger" data-remove>Remove from workout</button>' : ''}
     `;
     // Start is the obvious next step; Complete only becomes the main button once all sets are done
     bottom.innerHTML = `<button class="btn ${todo ? '' : 'primary'} big" data-done>Complete exercise →</button>`;
+  }
+
+  // Confetti and a message when a confirmed set beats the same set last time
+  function cheerIfBest(mid, j) {
+    if (!beats(state[mid].sets[j], last.get(mid)?.sets[j])) return;
+    celebrate();
+    toast(`New best for ${memberById.get(mid).name}! 🎉`);
+  }
+
+  function exerciseSummary() {
+    const rows = members.filter(m => !state[m.id].absent).map(m => {
+      const ls = last.get(m.id)?.sets || [];
+      const done = state[m.id].sets.map((x, j) => ({ x, j })).filter(({ x }) => x.done);
+      if (!done.length) return '';
+      const best = done.some(({ x, j }) => beats(x, ls[j]));
+      return `
+        <div class="sheet-row">
+          <div class="ms-head"><b>${esc(m.name)}</b>${best ? '<span class="best-tag">⬆ New best</span>' : ''}</div>
+          <div class="set-chips">${done.map(({ x, j }) => `<span class="set-chip ${beats(x, ls[j]) ? 'best' : ''}"><b>${j + 1}</b>${esc(fmtKgReps(x))}</span>`).join('')}</div>
+        </div>`;
+    }).join('');
+    const absent = members.filter(m => state[m.id].absent).map(m => m.name);
+    const setTotal = members.reduce((n, m) => n + (state[m.id].absent ? 0 : state[m.id].sets.filter(x => x.done).length), 0);
+    return `
+      <div class="sheet-title">${esc(exercise.name)}</div>
+      <p class="sub">Exercise complete 💪 · ${setTotal} set${setTotal === 1 ? '' : 's'}</p>
+      ${rows || '<p class="muted">No sets were logged.</p>'}
+      ${absent.length ? `<p class="muted small">Not here: ${esc(absent.join(', '))}</p>` : ''}`;
   }
 
   // ----- guided mode: one member and one set at a time -----
@@ -773,6 +893,7 @@ async function logView(mount, wid, mode, id) {
         reps.focus();
         return;
       }
+      cheerIfBest(mid, cursor.r);
       move(nextTodo(cursor));
     } else if (action === 'back') {
       commitStep();
@@ -826,7 +947,7 @@ async function logView(mount, wid, mode, id) {
     if (d.g) return guidedAction(d.g);
     if (b.hasAttribute('data-remove')) return removeExercise();
     if (b.hasAttribute('data-toggle-list')) {
-      showList = !showList;
+      showList = !listOpen();
       return render();
     }
     if (d.sets) {
@@ -856,6 +977,7 @@ async function logView(mount, wid, mode, id) {
         return;
       }
       set.done = !set.done;
+      if (set.done) cheerIfBest(d.tick, +d.i);
     } else {
       return;
     }
@@ -868,6 +990,7 @@ async function logView(mount, wid, mode, id) {
     await saveNow();
     if (dirty) return; // save failed; the status line says so
     draft.clear(draftKey);
+    await showSheet(exerciseSummary());
     go(`#/w/${wid}`);
   }));
 
