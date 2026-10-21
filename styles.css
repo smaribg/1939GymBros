@@ -15,8 +15,8 @@
   --accent-ink: #1f0f06;
   /* kg: a muted slate blue, cool against the warm orange/cream */
   --kg: #9ec3e6;
-  --kg-bg: #16202b;
-  --kg-border: #2a3e53;
+  --kg-bg: #1d2f43; /* strong enough that the fill alone says "kg" */
+  --kg-border: #3a5878;
   --green: #8aa87b;
   --danger: #f2616d; /* clearly redder than the orange accent */
   color-scheme: dark;
@@ -386,12 +386,16 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .sg-set { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .sg-no { align-self: center; color: #b4b0ad; font-size: 12px; font-weight: 500; }
 .sg-val { font-size: 17px; font-weight: 700; line-height: 1; padding: 9px 2px; border-radius: 8px; white-space: nowrap; }
-.sg-val small { margin: 0 1px; font-size: 0.8em; font-weight: 600; opacity: 0.75; }
-.sg-val.sg-weight { color: var(--kg); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
-.sg-val.sg-reps { color: var(--cream); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
+/* White numbers everywhere; the bubble (and the small kg / × in its color) carries the color code */
+.sg-val small { margin: 0 1px; font-size: 0.8em; font-weight: 600; }
+.sg-val.sg-weight { color: var(--text); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
+.sg-val.sg-weight small { color: var(--kg); }
+.sg-val.sg-reps { color: var(--text); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
+.sg-val.sg-reps small { color: var(--cream); }
 /* A new best: the set number becomes a green badge and its values get a ring */
 .sg-set.best .sg-no { padding: 1px 8px; border-radius: 999px; background: var(--green); color: #142012; }
-.sg-set.best .sg-val { box-shadow: inset 0 0 0 2px currentColor; }
+.sg-set.best .sg-val.sg-weight { box-shadow: inset 0 0 0 2px var(--kg); }
+.sg-set.best .sg-val.sg-reps { box-shadow: inset 0 0 0 2px var(--cream); }
 
 .list-item .ex-img { width: 44px; height: 44px; border-radius: 10px; }
 .list-item .ex-img svg { width: 22px; height: 22px; }
@@ -543,9 +547,11 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 /* A single set as bubbles: [60 kg] × [10] */
 .pills { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .pill { padding: 3px 9px; border-radius: 8px; font-size: 14px; font-weight: 700; line-height: 1.3; }
-.pill.kg { color: var(--kg); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
-.pill.reps { color: var(--cream); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
-.pill small { margin-left: 1px; font-size: 0.8em; font-weight: 600; opacity: 0.75; }
+.pill.kg { color: var(--text); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
+.pill.reps { color: var(--text); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
+.pill small { margin-left: 1px; font-size: 0.8em; font-weight: 600; }
+.pill.kg small { color: var(--kg); }
+.pill.reps small { color: var(--cream); }
 .times { color: var(--muted); font-size: 13px; }
 
 /* Little message at the top, e.g. a new best */
