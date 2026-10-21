@@ -2,7 +2,7 @@
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
-const DEFAULT_SETS = 4; // for someone doing an exercise for the first time
+const DEFAULT_SETS = 4; // for an exercise nobody has done yet
 let sb = null;
 let session = null;
 
@@ -468,6 +468,11 @@ async function logView(mount, wid, mode, id) {
   let draftKey = `draft2:${wid}:${weId || 'new-' + exercise.id}`;
   const saved = draft.load(draftKey) || {};
   const state = saved.members || {};
+  // Someone without history gets the set count the others did last time (the most common one, higher on a tie)
+  const counts = {};
+  for (const l of last.values()) counts[l.sets.length] = (counts[l.sets.length] || 0) + 1;
+  const groupSets = +Object.keys(counts).sort((a, b) => counts[b] - counts[a] || b - a)[0] || DEFAULT_SETS;
+
   for (const m of members) {
     if (state[m.id]) {
       for (const set of state[m.id].sets) set.done ??= set.reps !== ''; // drafts from before sets had a done flag
@@ -478,7 +483,7 @@ async function logView(mount, wid, mode, id) {
     state[m.id] = ex && (ex.absent || ex.sets.length)
       ? { absent: ex.absent, sets: ex.sets.map(x => toInput(x, true)) }
       // Start from what they did last time; they just confirm or adjust each set
-      : { absent: false, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: DEFAULT_SETS }, () => copySet()) };
+      : { absent: false, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
   }
   // Guided flow: members in random order, everyone does set 1, then everyone does set 2, ...
   let order = saved.order ? saved.order.filter(mid => state[mid]) : null;
