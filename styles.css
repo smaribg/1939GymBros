@@ -88,6 +88,9 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
   box-shadow: 0 6px 22px rgba(247, 131, 74, 0.18);
 }
 .btn.primary:active, .btn.cream:active { filter: brightness(0.92); }
+/* Cream main button on the home screen (keeps the start screen calm) */
+.btn.light { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); font-weight: 600; }
+.btn.light:active { filter: brightness(0.92); }
 /* "Add exercise": dashed orange outline with a round plus */
 .btn.dashed {
   flex-direction: row; gap: 10px;
@@ -107,7 +110,7 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
 .btn.big small { font-size: 13px; }
 .btn.block { width: 100%; margin-bottom: 12px; }
 /* Home screen's Members / Exercises: stand out from the dark background */
-.btn.tile { min-height: 56px; color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; } /* background: see .stat.orange */
+.btn.tile { min-height: 56px; background: #1c1c1c; border-color: rgba(230, 206, 183, 0.3); color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; }
 .btn.tile:active { filter: brightness(1.15); }
 .btn:disabled { opacity: 0.45; }
 
@@ -359,19 +362,19 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .ex-summary .ex-img svg { width: 28px; height: 28px; }
 
 /* Big dark panel holding a workout's exercises, as in the reference */
-.panel { background: var(--panel); border: 1px solid #1e1e1e; border-radius: 24px; padding: 10px; margin-bottom: 14px; }
+.panel { background: var(--panel); border: 1px solid #1e1e1e; border-radius: 24px; padding: 8px; margin-bottom: 14px; }
 .panel .card { margin-bottom: 10px; }
 .panel > .muted { padding: 18px 0 8px; margin: 0; }
 .panel .btn.dashed { margin: 4px 0 0; }
 
 /* One inner card per member: name and set count, then their sets */
-.ms-row { margin-top: 10px; padding: 12px; background: #1a1a1a; border: 1px solid #242424; border-radius: 16px; }
+.ms-row { margin-top: 10px; padding: 12px 10px; background: #1a1a1a; border: 1px solid #242424; border-radius: 16px; }
 .ms-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ms-name { font-weight: 600; font-size: 17px; }
 /* Sets table: a column per set, kg above reps, so values line up. Color code: KG orange, REPS cream */
 .set-grid {
   display: grid;
-  grid-template-columns: 48px repeat(var(--n), minmax(0, 56px));
+  grid-template-columns: 40px repeat(var(--n), minmax(0, 68px));
   gap: 5px 6px;
   margin-top: 10px;
   text-align: center;
@@ -384,7 +387,7 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .sg-label.sg-weight { color: var(--kg-label); }
 .sg-label.sg-reps { color: var(--text); }
 .sg-no { color: #b4b0ad; font-size: 12px; font-weight: 500; }
-.sg-val { font-size: 17px; font-weight: 700; line-height: 1; padding: 9px 0; border-radius: 8px; }
+.sg-val { font-size: 17px; font-weight: 700; line-height: 1; padding: 9px 8px; border-radius: 8px; }
 .sg-val.sg-weight { color: var(--kg); background: var(--kg-bg); box-shadow: inset 0 0 0 1px var(--kg-border); }
 .sg-val.sg-reps { color: var(--cream); background: #242424; box-shadow: inset 0 0 0 1px #2e2e2e; }
 /* A new best: the set number becomes a green badge and its values get a ring */
@@ -512,7 +515,7 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .stat span { color: var(--muted); font-size: 13px; }
 /* Tinted cards: the color glows from the top-left corner and fades into the normal dark grey,
    border included (an inner padding-box layer over a border-box layer) */
-.stat.orange, .btn.tile {
+.stat.orange {
   border-color: transparent;
   background:
     radial-gradient(140% 120% at 0% 0%, rgba(247, 131, 74, 0.42), rgba(247, 131, 74, 0.1) 45%, transparent 78%) padding-box,
@@ -566,12 +569,12 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   background: var(--card); color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .month span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--card2); font-size: 12px; }
-.month.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.month.on span { background: rgba(31, 15, 6, 0.18); }
+.month.on { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); font-weight: 600; }
+.month.on span { background: rgba(29, 25, 19, 0.15); }
 .list-item.past { gap: 6px; padding: 16px; }
 .past-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .past-head b { font-size: 17px; }
-.past-stats { color: var(--accent-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.past-stats { color: var(--cream); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .bubbles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .bubble {
   padding: 4px 11px; border-radius: 999px; font-size: 13px; font-weight: 500;

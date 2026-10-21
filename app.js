@@ -55,7 +55,7 @@ function setGrid(items) {
   const row = (label, f) => `<span class="sg-label sg-${f}">${label}</span>${items.map(x => `<span class="${f === 'no' ? 'sg-no' : 'sg-val'} sg-${f} ${x.best ? 'best' : ''}">${esc(x[f] ?? '–')}</span>`).join('')}`;
   return `
     <div class="set-grid" style="--n:${items.length}">
-      ${row('Set', 'no')}
+      ${row('', 'no')}
       ${hasKg ? row('kg', 'weight') : ''}
       ${row('Reps', 'reps')}
     </div>`;
@@ -291,8 +291,8 @@ async function home(mount) {
   const v = mount(`
     ${!members.length ? '<div class="notice">Start by adding the members of your group.</div>' : ''}
     ${active
-      ? `<a class="btn cream big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
-      : `<button class="btn cream big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
+      ? `<a class="btn light big" href="#/w/${active.id}">Resume workout<small>Started ${fmtDate(active.started_at)}</small></a>`
+      : `<button class="btn light big" data-start ${members.length ? '' : 'disabled'}>Start workout</button>`}
     <div class="row nowrap">
       <a class="btn block grow tile" href="#/members">👥 Members (${members.length})</a>
       <a class="btn block grow tile" href="#/exercises">🏋️ Exercises</a>
