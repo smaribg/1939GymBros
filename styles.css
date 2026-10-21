@@ -364,3 +364,21 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
   border-radius: 10px;
 }
 .set-row.done .val { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
+
+/* Exercises screen: tap the thumbnail to add or change the photo */
+.photo-pick { position: relative; flex: none; cursor: pointer; }
+.photo-pick .cam {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--cream);
+}
+.photo-pick.busy { opacity: 0.4; pointer-events: none; }

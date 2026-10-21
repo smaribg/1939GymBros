@@ -259,12 +259,30 @@ async function exercisesView(mount) {
     <div class="list">
       ${exercises.map(e => `
         <div class="list-item row">
-          ${exImg(e.photo_path)}
+          <label class="photo-pick" aria-label="${e.photo_path ? 'Change' : 'Add'} photo">
+            ${exImg(e.photo_path)}
+            <span class="cam"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            <input type="file" accept="image/*" hidden data-photo="${e.id}">
+          </label>
           <input class="grow" value="${esc(e.name)}" data-rename="${e.id}" aria-label="Name">
           <button class="btn small danger" data-remove="${e.id}">Delete</button>
         </div>`).join('') || '<p class="muted">No exercises yet.</p>'}
     </div>
   `);
+
+  // Tap a thumbnail to take or choose a photo for that exercise
+  v.querySelector('.list').addEventListener('change', act(async e => {
+    const input = e.target.closest('[data-photo]');
+    const file = input?.files?.[0];
+    if (!file || !await requireAuth()) return;
+    const exercise = exercises.find(x => x.id === input.dataset.photo);
+    input.closest('.photo-pick').classList.add('busy');
+    try {
+      await uploadExercisePhoto(exercise, file);
+    } finally {
+      router();
+    }
+  }));
 
   v.querySelector('[data-add]').addEventListener('submit', act(async e => {
     e.preventDefault();
