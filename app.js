@@ -146,17 +146,21 @@ function renderLock() {
   btn.classList.toggle('unlocked', !!session);
 }
 
-function requireAuth() {
+// `required`: the password screen shown on entering the site, which can't be cancelled
+function requireAuth(required) {
   if (session) return Promise.resolve(true);
   return new Promise(resolve => {
     const dlg = $('#login'), form = $('#login-form'), pw = $('#pw'), err = $('#login-err');
     err.textContent = '';
     pw.value = '';
+    $('#login-cancel').hidden = !!required;
     const done = ok => {
-      form.onsubmit = dlg.oncancel = $('#login-cancel').onclick = null;
+      form.onsubmit = dlg.oncancel = dlg.onclose = $('#login-cancel').onclick = null;
       if (dlg.open) dlg.close();
       resolve(ok);
     };
+    // Browsers don't always let Escape be blocked, so the required screen just comes back
+    if (required) dlg.onclose = () => dlg.showModal();
     form.onsubmit = async e => {
       e.preventDefault();
       const { error } = await sb.auth.signInWithPassword({ email: CONFIG.GROUP_EMAIL, password: pw.value });
@@ -164,7 +168,7 @@ function requireAuth() {
       done(true);
     };
     $('#login-cancel').onclick = () => done(false);
-    dlg.oncancel = () => done(false);
+    dlg.oncancel = e => { if (required) e.preventDefault(); else done(false); };
     dlg.showModal();
     pw.focus();
   });
@@ -430,7 +434,7 @@ async function memberView(mount, id) {
         </div>
         <div data-chart>${chartHtml(g)}</div>
         <details>
-          <summary>Every time</summary>
+          <summary>Show all ${g.sessions.length} session${g.sessions.length === 1 ? '' : 's'} with sets</summary>
           ${[...g.sessions].reverse().map(s => `
             <div class="ms-row">
               <span class="muted small">${fmtDate(s.t)}</span>
@@ -1270,9 +1274,14 @@ document.addEventListener('gesturestart', e => e.preventDefault());
   sb.auth.onAuthStateChange((_event, s) => { session = s; renderLock(); });
   renderLock();
   $('#lock').addEventListener('click', act(async () => {
-    if (session) { if (confirm('Lock this device? You will need the password to save again.')) await sb.auth.signOut(); }
-    else await requireAuth();
+    if (session) {
+      if (!confirm('Lock this device? You will need the password to get in again.')) return;
+      await sb.auth.signOut();
+      location.reload();
+    } else await requireAuth();
   }));
+  // The whole site is behind the group password
+  if (!session) await requireAuth(true);
   window.addEventListener('hashchange', router);
   router();
 })();

@@ -72,3 +72,14 @@ create policy "group upload exercise photos" on storage.objects for insert to au
   with check (bucket_id = 'exercise-photos');
 create policy "group delete exercise photos" on storage.objects for delete to authenticated
   using (bucket_id = 'exercise-photos');
+
+-- ---------- Private: reading also needs the group password ----------
+-- Removes the "anyone can read" rules; the signed-in group account can still read through "group write".
+do $$
+declare t text;
+begin
+  foreach t in array array['members', 'exercises', 'workouts', 'workout_exercises', 'entries'] loop
+    execute format('drop policy if exists "public read" on %I', t);
+  end loop;
+end $$;
+revoke select on members, exercises, workouts, workout_exercises, entries from anon;
