@@ -492,7 +492,7 @@ async function memberView(mount, id) {
           <span class="grow col">
             <span class="ex-title">${esc(g.exercise.name)}</span>
             <span class="muted small">${g.sessions.length} time${g.sessions.length === 1 ? '' : 's'} · last ${fmtShort(lastT)}</span>
-            <span class="best-line"><span class="best-tag">Best</span>${kgRepsPills(best)}</span>
+            <span class="best-line"><span class="best-label">Best:</span>${kgRepsPills(best)}</span>
           </span>
         </div>
         <div data-chart>${chartHtml(g)}</div>

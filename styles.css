@@ -542,7 +542,10 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
   .stat b { font-size: 22px; }
 }
 .best-tag { color: var(--green); font-size: 13px; font-weight: 600; }
-.best-line { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.best-line { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.best-label { color: var(--muted); font-size: 15px; font-weight: 600; }
+.best-line .pill { font-size: 16px; padding: 4px 10px; }
+.best-line .times { font-size: 15px; }
 /* A single set as bubbles: [60 kg] × [10] */
 .pills { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .pill { padding: 3px 9px; border-radius: 8px; font-size: 14px; font-weight: 700; line-height: 1.3; }
