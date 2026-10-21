@@ -949,8 +949,9 @@ async function logView(mount, wid, mode, id) {
       const i = (start + k) % order.length;
       const s = state[order[i]];
       if (!s || s.absent) continue;
-      const r = s.sets.findIndex(x => !x.done);
-      if (r >= 0 && !same({ r, i }, from)) return { r, i };
+      // (the set we're coming from doesn't count, so whoever is last left just carries on with their next set)
+      const r = s.sets.findIndex((x, j) => !x.done && !same({ r: j, i }, from));
+      if (r >= 0) return { r, i };
     }
     return null;
   }

@@ -49,8 +49,7 @@ header {
   background: rgba(14, 15, 15, 0.82);
   backdrop-filter: blur(10px);
 }
-#lock { margin-left: auto; border-radius: 999px; }
-#lock.unlocked { color: var(--green); border-color: var(--green); }
+#lock { margin-left: auto; border-radius: 999px; border-color: #343130; }
 
 main { max-width: 640px; margin: 0 auto; padding: 8px 16px 130px; }
 
@@ -153,7 +152,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .hero {
   display: block;
   width: 100%;
-  max-width: 260px; /* a square badge: wider would push the buttons off the first screen */
+  max-width: 320px; /* a square badge: much wider would push the buttons off the first screen */
   margin: 4px auto 22px;
   filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55));
 }
@@ -270,7 +269,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .small { font-size: 13px; }
 
 /* Members who are here stand out from the page; members who aren't sit quietly at the bottom */
-.member { background: #1a1b19; border-color: #30312d; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
+.member { background: linear-gradient(180deg, #1b1b1b, #171717); border-color: #2c2c2c; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
 .absent-row {
   display: flex;
   align-items: center;
@@ -297,7 +296,11 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   font-weight: 600;
 }
 .prev { color: var(--muted); font-size: 14px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.set-row input { min-height: 40px; padding: 6px 4px; text-align: center; background: transparent; border-color: #3a3b37; }
+.set-row input { min-height: 40px; padding: 6px 4px; text-align: center; font-weight: 700; color: var(--text); }
+/* Same color code as the sets tables: kg cells blue, reps cells grey, white numbers */
+.set-row > :nth-child(3) { background: var(--kg-bg); border: 1px solid var(--kg-border); }
+.set-row > :nth-child(4) { background: #242424; border: 1px solid #2e2e2e; }
+.set-row > input:nth-child(3)::placeholder { color: #6f8aa6; }
 .tick {
   display: flex;
   align-items: center;
@@ -310,11 +313,10 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   color: var(--muted);
   cursor: pointer;
 }
-/* A finished set: the whole row turns green */
-.set-row.done { background: rgba(138, 168, 123, 0.26); }
+/* A finished set: green row with a green number and tick; the kg / reps cells keep their colors */
+.set-row.done { background: rgba(138, 168, 123, 0.16); box-shadow: inset 0 0 0 1px rgba(138, 168, 123, 0.35); }
 .set-row.done .set-no, .set-row.done .tick { background: var(--green); color: #142012; }
 .set-row.done .prev { color: #b9c7b4; }
-.set-row.done input { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
 
 /* ---------- guided step ---------- */
 
@@ -408,16 +410,16 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .set-row.upcoming { opacity: 0.45; }
 .set-row.current { background: rgba(247, 131, 74, 0.07); box-shadow: inset 0 0 0 2px var(--accent); }
 .set-row.current .set-no { background: var(--accent); color: var(--accent-ink); }
-.set-row.current input { min-height: 48px; font-size: 20px; font-weight: 600; background: var(--input); border-color: #4a4b46; }
+.set-row.current input { min-height: 48px; font-size: 20px; }
+.set-row.current input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .val {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 40px;
-  border: 1px solid #3a3b37;
   border-radius: 10px;
+  font-weight: 700;
 }
-.set-row.done .val { border-color: transparent; background: rgba(0, 0, 0, 0.18); }
 
 /* Exercises screen: tap the thumbnail to add or change the photo */
 .photo-pick { position: relative; flex: none; cursor: pointer; }
