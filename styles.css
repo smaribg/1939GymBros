@@ -516,6 +516,7 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 
 /* The stats row on a workout page */
 .view > .stats { margin-bottom: 18px; }
+.bubbles.workout-people { margin: -8px 0 16px; }
 
 /* Members list and member page */
 .list-item.link-row { flex-direction: row; align-items: center; gap: 10px; font-weight: 500; }

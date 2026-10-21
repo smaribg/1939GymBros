@@ -629,7 +629,9 @@ async function workoutView(mount, wid) {
 
   const allSets = wes.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
   const kg = allSets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
-  const people = new Set(wes.flatMap(we => participants(we)));
+  // Everyone who logged a set, in the usual member order
+  const people = new Set(wes.flatMap(we => we.entries.filter(e => !e.absent && e.sets.length))
+    .map(e => e.members).sort(byCreated).map(m => m.name));
   const statsHtml = `
     <div class="stats">
       <div class="stat"><b>${wes.length}</b><span>exercise${wes.length === 1 ? '' : 's'}</span></div>
@@ -640,7 +642,8 @@ async function workoutView(mount, wid) {
   const v = mount(`
     <a class="back" href="#/">‹ Home</a>
     <h1>${w.finished_at ? 'Workout' : 'Today’s Workout'}</h1>
-    <p class="sub">${fmtDate(w.started_at)}${people.size ? ` · ${people.size} member${people.size === 1 ? '' : 's'}` : ''}</p>
+    <p class="sub">${fmtDate(w.started_at)}</p>
+    ${people.size ? `<div class="bubbles workout-people">${[...people].map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</div>` : ''}
     ${allSets.length ? statsHtml : ''}
     ${wes.map(we => `
       <div class="card ex-summary">
