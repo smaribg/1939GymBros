@@ -159,6 +159,17 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   border: 1px solid #2a2828;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
 }
+/* On phones the banner runs edge to edge */
+@media (max-width: 640px) {
+  .hero {
+    width: calc(100% + 32px);
+    max-width: none;
+    margin: -8px -16px 16px;
+    border-radius: 0;
+    border-width: 1px 0;
+    box-shadow: none;
+  }
+}
 
 /* ---------- lists & cards ---------- */
 
