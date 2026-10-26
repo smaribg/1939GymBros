@@ -100,6 +100,12 @@ const draft = {
 // A soft row only fills in a member nobody has saved yet (e.g. "not here" carried over from the last exercise).
 let outbox = draft.load('outbox') || [];
 let flushing = null, retryTimer = null, retryDelay = 3000;
+// The app open twice on one phone: take the other tab's outbox, so an upload it already did is never sent again later
+window.addEventListener('storage', e => {
+  if (e.key !== 'outbox') return;
+  outbox = draft.load('outbox') || [];
+  renderSync();
+});
 
 function mergeRows(old = {}, rows) {
   const out = { ...old };
