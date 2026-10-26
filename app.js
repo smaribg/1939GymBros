@@ -98,9 +98,16 @@ window.addEventListener('storage', e => {
   renderSync();
 });
 
+// A member's row ({ absent, sets }) as a string, to tell whether two versions are the same
+const rowSig = r => JSON.stringify([!!r.absent, r.sets.map(x => [x.reps ?? null, x.weight ?? null])]);
+
+// Each row also keeps `base`: the member's row as the phone knew it before this change (kept from the first change
+// while several wait), so a row someone else changed meanwhile can be noticed when it's sent
 function mergeRows(old = {}, rows) {
   const out = { ...old };
-  for (const [mid, row] of Object.entries(rows)) out[mid] = { ...row, soft: row.soft && (old[mid]?.soft ?? true) };
+  for (const [mid, row] of Object.entries(rows)) {
+    out[mid] = { ...row, soft: row.soft && (old[mid]?.soft ?? true), base: old[mid] ? old[mid].base : row.base };
+  }
   return out;
 }
 const pendingRows = item => ({ ...item.sending, ...item.rows });
@@ -149,12 +156,26 @@ async function sendItem(item) {
   if (!session) throw new Error('Locked');
   item.weId ||= await ensureWorkoutExercise(item.wid, item.exerciseId);
   window.dispatchEvent(new CustomEvent('gb:weid', { detail: item }));
-  const rows = Object.entries(item.sending).map(([member_id, r]) => ({ workout_exercise_id: item.weId, member_id, absent: r.absent, sets: r.sets, soft: r.soft }));
+  // Two phones can log the same people (two groups on two exercises, a phone that was asleep or without signal):
+  // sets logged on another phone are never lost to a change made here without seeing them
+  const current = new Map(check(await sb.from('entries').select('member_id, absent, sets')
+    .eq('workout_exercise_id', item.weId).in('member_id', Object.keys(item.sending))).map(e => [e.member_id, e]));
+  const theirsWins = (r, cur) => r.base != null && rowSig(cur) !== r.base && rowSig(cur) !== rowSig(r)
+    && !cur.absent && cur.sets.length > (r.absent ? 0 : r.sets.length);
+  const rows = [];
+  let kept = false;
+  for (const [member_id, r] of Object.entries(item.sending)) {
+    const cur = current.get(member_id);
+    if (cur && (r.soft || theirsWins(r, cur))) { kept = true; continue; }
+    rows.push({ workout_exercise_id: item.weId, member_id, absent: r.absent, sets: r.sets, soft: r.soft });
+  }
   const strip = list => list.map(({ soft, ...r }) => r);
   const hard = rows.filter(r => !r.soft), soft = rows.filter(r => r.soft);
   const onConflict = 'workout_exercise_id,member_id';
   if (hard.length) check(await sb.from('entries').upsert(strip(hard), { onConflict }));
   if (soft.length) check(await sb.from('entries').upsert(strip(soft), { onConflict, ignoreDuplicates: true }));
+  // The page shows this phone's version: have it take the database's instead
+  if (kept) setTimeout(() => window.dispatchEvent(new CustomEvent('gb:theirs', { detail: item })));
 }
 
 // Uploads everything waiting; on failure tries again a bit later (and whenever the phone gets signal back)
@@ -1017,7 +1038,7 @@ async function logView(mount, wid, mode, id) {
   // savedSig: each member's row as the database has it (or as this phone last handed it to the outbox).
   const rowOf = s => ({ absent: s.absent, sets: s.absent ? [] : s.sets.filter(x => x.done)
     .map(x => ({ reps: num(x.reps), weight: num(x.weight) })).filter(x => x.reps != null) });
-  const sig = r => JSON.stringify([!!r.absent, r.sets.map(x => [x.reps ?? null, x.weight ?? null])]);
+  const sig = rowSig;
   const NO_ROW = sig({ absent: false, sets: [] });
   const savedSig = new Map();
   const sent = new Map(); // member -> rows this phone saved, so their echo from the database is ignored
@@ -1093,7 +1114,7 @@ async function logView(mount, wid, mode, id) {
     for (const m of members) {
       const row = rowOf(state[m.id]), s = sig(row);
       if (s === savedSig.get(m.id)) continue;
-      rows[m.id] = { ...row, soft: inferred.has(m.id) };
+      rows[m.id] = { ...row, soft: inferred.has(m.id), base: savedSig.get(m.id) };
       savedSig.set(m.id, s);
       if (!sent.has(m.id)) sent.set(m.id, new Set());
       sent.get(m.id).add(s);
@@ -1135,12 +1156,16 @@ async function logView(mount, wid, mode, id) {
 
   // ----- live: sets saved on another phone -----
 
+  const refetch = () => sb.from('entries').select('member_id, absent, sets').eq('workout_exercise_id', weId)
+    .then(({ data }) => data?.forEach(applyRemote));
   function listen() {
     subscribe([{ event: '*', table: 'entries', filter: `workout_exercise_id=eq.${weId}` }],
-      ({ new: row }) => row?.member_id && applyRemote(row),
-      () => sb.from('entries').select('member_id, absent, sets').eq('workout_exercise_id', weId)
-        .then(({ data }) => data?.forEach(applyRemote)));
+      ({ new: row }) => row?.member_id && applyRemote(row), refetch);
   }
+  // A change from here wasn't saved because another phone had logged more sets for them: show those
+  const onTheirs = e => { if (weId && e.detail.wid === wid && e.detail.exerciseId === exercise.id) refetch(); };
+  window.addEventListener('gb:theirs', onTheirs);
+  onLeave(() => window.removeEventListener('gb:theirs', onTheirs));
   // Reps or kg typed in the step on screen and not confirmed yet
   function stepEdited() {
     const reps = body.querySelector('[data-step] [data-f="reps"]'), weight = body.querySelector('[data-step] [data-f="weight"]');
@@ -1155,10 +1180,9 @@ async function logView(mount, wid, mode, id) {
     // Changed here and not uploaded yet: this phone's version wins
     if (sig(rowOf(s)) !== savedSig.get(mid) || pendingRows(outboxItem(wid, exercise.id) || {})[mid]) return;
     const onScreen = cursor && order[cursor.i] === mid;
-    // "Not here" from another phone for someone this phone is logging (their set is on screen, or they've done sets
-    // here) is a mix-up, e.g. "That's everyone" tapped there before their first set arrived: they stay, and are saved
-    // again so the other phone sees them back
-    if (row.absent && !s.absent && (onScreen || s.sets.some(x => x.done))) {
+    // "Not here" from another phone for someone whose set is on screen here is a mix-up, e.g. "That's everyone" tapped
+    // there before their first set arrived: they stay, and are saved again so the other phone sees them back
+    if (row.absent && !s.absent && onScreen) {
       savedSig.set(mid, remote);
       sent.delete(mid);
       inferred.delete(mid);
