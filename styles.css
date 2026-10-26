@@ -53,6 +53,8 @@ header {
 /* Sets saved on the phone but not uploaded yet (no signal) */
 #sync { margin-left: auto; border-radius: 999px; border-color: rgba(238, 211, 168, 0.45); color: var(--cream); }
 #sync:not([hidden]) + #lock { margin-left: 8px; }
+/* Uploads have kept failing: loud, so nobody keeps logging into a phone that isn't saving */
+#sync.stuck { border-color: var(--danger); color: var(--danger); }
 
 main { max-width: 640px; margin: 0 auto; padding: 8px 16px 130px; }
 
@@ -273,6 +275,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   text-align: left;
 }
 .save-status.wait { color: var(--cream); }
+.save-status.stuck { color: var(--danger); font-weight: 600; }
 
 .photo-block { position: relative; margin-bottom: 16px; }
 .ex-photo { display: block; width: 100%; max-height: 280px; object-fit: cover; border-radius: 18px; background: var(--card); }

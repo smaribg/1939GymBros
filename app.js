@@ -91,6 +91,16 @@ const draft = {
 // A soft row only fills in a member nobody has saved yet (e.g. "not here" carried over from the last exercise).
 let outbox = draft.load('outbox') || [];
 let flushing = null, retryTimer = null, retryDelay = 3000;
+let failingSince = 0, failReason = ''; // uploads failing since when, and why (in words)
+
+// Uploads that keep failing are shown loudly (after a short while, so a blip doesn't flash a warning)
+const uploadStuck = () => !!failingSince && Date.now() - failingSince > 20000;
+function describeUploadError(err) {
+  const msg = String(err?.message || err || '');
+  if (!session || msg === 'Locked') return 'this phone is locked, tap to unlock';
+  if (!navigator.onLine || /fetch|network|abort|timeout|timed out/i.test(`${err?.name} ${msg}`)) return 'no connection';
+  return msg || 'unknown error';
+}
 // The app open twice on one phone: take the other tab's outbox, so an upload it already did is never sent again later
 window.addEventListener('storage', e => {
   if (e.key !== 'outbox') return;
@@ -116,7 +126,6 @@ const outboxItem = (wid, exerciseId) => outbox.find(x => x.wid === wid && x.exer
 function saveOutbox() {
   draft.save('outbox', outbox);
   renderSync();
-  window.dispatchEvent(new Event('gb:outbox'));
 }
 
 function queueSave(wid, exerciseId, weId, rows) {
@@ -196,6 +205,9 @@ function flushSaves() {
       } catch (err) {
         if (err?.code !== '23503') { // 23503: the workout or exercise was deleted meanwhile, nothing left to save to
           console.error(err);
+          failingSince ||= Date.now();
+          failReason = describeUploadError(err);
+          setTimeout(renderSync, 20500); // turns into a warning if it's still failing by then
           retryTimer = setTimeout(flushSaves, retryDelay);
           retryDelay = Math.min(retryDelay * 2, 30000);
           return;
@@ -205,6 +217,7 @@ function flushSaves() {
       }
       if (!Object.keys(item.rows).length) outbox = outbox.filter(x => x !== item);
       retryDelay = 3000;
+      failingSince = 0;
     }
   })().finally(() => {
     flushing = null;
@@ -218,7 +231,9 @@ function renderSync() {
   const btn = $('#sync');
   const n = outbox.reduce((sum, x) => sum + Object.keys(pendingRows(x)).length, 0);
   btn.hidden = !n;
-  btn.textContent = flushing ? 'Uploading…' : `${n} waiting to upload`;
+  btn.classList.toggle('stuck', uploadStuck());
+  btn.textContent = uploadStuck() ? `⚠ ${n} not uploaded` : flushing ? 'Uploading…' : `${n} waiting to upload`;
+  window.dispatchEvent(new Event('gb:outbox'));
 }
 
 // ---------- live updates from other phones ----------
@@ -231,7 +246,11 @@ const onLeave = fn => cleanups.push(fn);
 function subscribe(changes, onChange, onReady) {
   const ch = sb.channel(`live-${Date.now()}-${Math.random()}`);
   for (const c of changes) ch.on('postgres_changes', { schema: 'public', ...c }, onChange);
-  ch.subscribe(status => { if (status === 'SUBSCRIBED') onReady?.(); });
+  ch.subscribe(status => {
+    if (status !== 'SUBSCRIBED') return;
+    flushSaves(); // connected again, so uploads that were waiting can go now
+    onReady?.();
+  });
   onLeave(() => sb.removeChannel(ch));
 }
 
@@ -1151,7 +1170,8 @@ async function logView(mount, wid, mode, id) {
   function refreshStatus() {
     if (saveTimer) statusShown = true;
     if (!statusShown) return;
-    if (saveTimer || (waiting() && flushing)) setStatus('Saving…');
+    if (waiting() && uploadStuck()) setStatus(`⚠ Not uploaded: ${failReason} · tap to try again`, 'stuck');
+    else if (saveTimer || (waiting() && flushing)) setStatus('Saving…');
     else if (waiting()) setStatus('Saved on this phone · uploads when there’s signal', 'wait');
     else setStatus('Saved ✓');
   }
@@ -1259,11 +1279,15 @@ async function logView(mount, wid, mode, id) {
   const bottom = v.querySelector('[data-bottom]');
   const statusEl = v.querySelector('[data-status]');
 
-  function setStatus(text, wait) {
+  function setStatus(text, kind) {
     statusEl.textContent = text;
-    statusEl.classList.toggle('wait', !!wait);
+    statusEl.classList.toggle('wait', kind === 'wait');
+    statusEl.classList.toggle('stuck', kind === 'stuck');
   }
-  statusEl.addEventListener('click', () => saveNow());
+  statusEl.addEventListener('click', act(async () => {
+    if (!session && !await requireAuth()) return;
+    saveNow();
+  }));
   // Leaving only has to get the changes into the outbox; uploading carries on in the background
   leaveHook = () => { if (touched) saveNow(); };
 
@@ -1814,7 +1838,10 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 
   // Anything saved without signal goes up as soon as possible
   renderSync();
-  $('#sync').addEventListener('click', () => flushSaves());
+  $('#sync').addEventListener('click', act(async () => {
+    if (!session && !await requireAuth()) return;
+    flushSaves();
+  }));
   window.addEventListener('online', () => flushSaves());
   document.addEventListener('visibilitychange', () => { if (!document.hidden) flushSaves(); });
   flushSaves();
