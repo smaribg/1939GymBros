@@ -980,16 +980,17 @@ async function lastTime(exerciseId, wid, before) {
 
 async function logView(mount, wid, mode, id) {
   let weId = mode === 'edit' ? id : null;
-  let exercise, weCreated = null, existing = [];
+  let exercise, weCreated = null, existing = [], finished = false;
 
   if (weId) {
     const we = check(await sb.from('workout_exercises')
-      .select('created_at, exercises(id, name, photo_path), entries(member_id, absent, sets)')
+      .select('*, exercises(id, name, photo_path), entries(member_id, absent, sets)')
       .eq('id', weId)
       .single());
     exercise = we.exercises;
     weCreated = we.created_at;
     existing = we.entries;
+    finished = !!we.finished_at;
   } else {
     // Already in this workout (e.g. added on another phone): open that one instead of adding it twice
     const found = check(await sb.from('workout_exercises').select('id').eq('workout_id', wid).eq('exercise_id', id).order('created_at').limit(1))[0];
@@ -1006,17 +1007,25 @@ async function logView(mount, wid, mode, id) {
   const [allMembers, last, siblings, workout] = await Promise.all([
     sb.from('members').select('id, name, active').order('created_at').then(check),
     lastTime(exercise.id, wid, weCreated),
-    sb.from('workout_exercises').select('id, created_at, entries(member_id, absent, sets)').eq('workout_id', wid).then(check),
+    sb.from('workout_exercises').select('*, entries(member_id, absent, sets)').eq('workout_id', wid).then(check),
     sb.from('workouts').select('*').eq('id', wid).maybeSingle().then(check),
   ]);
   const existingBy = new Map(existing.map(e => [e.member_id, e]));
-  // Whoever was not here in the latest other exercise of this workout is still not here
-  // (but whoever has done sets in this workout is here: a mix-up on one exercise mustn't spread to the next ones)
+  const others = siblings.filter(x => x.id !== weId).sort(byCreated);
+  // Another phone's exercise still going (sets logged, not finished): the group is split, e.g. half on bench and half
+  // on triceps with a phone each. (Without the finished_at column every exercise counts as finished.)
+  const lastExKey = `ex:${wid}`; // the exercise this phone logged last in this workout
+  const ongoing = we => 'finished_at' in we && !we.finished_at && we.entries.some(e => !e.absent && e.sets.length);
+  const split = others.some(we => ongoing(we) && we.exercise_id !== draft.load(lastExKey));
+  // Whoever was not here in the latest exercise of this workout is still not here. While the group is split that's
+  // the latest exercise of this phone's group (the one this phone logged last), else simply the latest one. Whoever
+  // has done sets in this workout is here though: a mix-up on one exercise mustn't spread to the next ones (but while
+  // split, "not here" just means in the other group).
   const wasAbsent = new Map(), lifted = new Set();
-  for (const we of siblings.filter(x => x.id !== weId).sort(byCreated)) {
+  for (const we of others) {
     for (const e of we.entries) {
-      wasAbsent.set(e.member_id, e.absent);
-      if (!e.absent && e.sets.length) lifted.add(e.member_id);
+      if (!split || we.exercise_id === draft.load(lastExKey)) wasAbsent.set(e.member_id, e.absent);
+      if (!split && !e.absent && e.sets.length) lifted.add(e.member_id);
     }
   }
   const members = allMembers.filter(m => m.active || existingBy.has(m.id));
@@ -1071,10 +1080,11 @@ async function logView(mount, wid, mode, id) {
   }
   // Guided flow: members take turns, each doing their next set. On the workout's first exercise the order is picked
   // as set 1 goes (whoever goes next is tapped), then kept for every set and exercise after that. It's stored on the
-  // workout so every phone uses the same one.
-  const orderKey = `order:${wid}`;
+  // workout so every phone uses the same one. While the group is split, each phone keeps its own order instead (the
+  // shared one would start with the other group): picked on its first exercise like that, then reused on this phone.
+  const orderKey = split ? `order:${wid}:split` : `order:${wid}`;
   let picking = !!saved.picking; // picking the order: `order` holds whoever has been picked so far
-  let order = saved.order || workout?.member_order || draft.load(orderKey);
+  let order = saved.order || (split ? null : workout?.member_order) || draft.load(orderKey);
   if (order) {
     order = order.filter(mid => state[mid]);
     if (!picking) order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
@@ -1089,7 +1099,7 @@ async function logView(mount, wid, mode, id) {
     saveDraft();
     if (order && !picking) {
       draft.save(orderKey, order);
-      if (JSON.stringify(order) !== sharedOrder) {
+      if (!split && JSON.stringify(order) !== sharedOrder) {
         sharedOrder = JSON.stringify(order);
         sb.from('workouts').update({ member_order: order }).eq('id', wid)
           .then(({ error }) => { if (error) console.warn('Order not shared:', error.message); });
@@ -1261,7 +1271,22 @@ async function logView(mount, wid, mode, id) {
   }
   statusEl.addEventListener('click', () => saveNow());
   // Leaving only has to get the changes into the outbox; uploading carries on in the background
-  leaveHook = () => { saveNow(); };
+  leaveHook = () => {
+    saveNow();
+    if (sent.size) draft.save(lastExKey, exercise.id); // (just looking at one doesn't count)
+    if (!hasTodo()) markFinished();
+  };
+
+  // Done with (Complete pressed, or left with every set done): from now on it no longer counts as still going
+  function markFinished() {
+    if (finished || !(weId || waiting())) return;
+    finished = true;
+    (async () => {
+      const id = weId || await ensureWorkoutExercise(wid, exercise.id);
+      const { error } = await sb.from('workout_exercises').update({ finished_at: new Date().toISOString() }).eq('id', id);
+      if (error) console.warn('Not marked finished:', error.message);
+    })().catch(() => {});
+  }
 
   // ----- photo -----
 
@@ -1579,8 +1604,8 @@ async function logView(mount, wid, mode, id) {
       state[mid].sets.splice(cursor.r); // drop this and any later sets
       goOn(cursor);
     } else if (action === 'everyone') {
-      // Whoever hasn't been picked isn't here (except anyone who's done sets in this workout: they're being logged on
-      // another phone); that completes the order
+      // Whoever hasn't been picked isn't here (except anyone who's done sets in this workout, see `lifted`); that
+      // completes the order
       for (const m of toPick()) {
         if (lifted.has(m.id)) continue;
         state[m.id].absent = true;
@@ -1755,6 +1780,8 @@ async function logView(mount, wid, mode, id) {
   bottom.addEventListener('click', act(async e => {
     if (!e.target.closest('[data-done]')) return;
     saveNow(); // safe in the outbox even without signal
+    if (sent.size) draft.save(lastExKey, exercise.id);
+    markFinished();
     leaveHook = null;
     draft.clear(draftKey);
     await showSheet(exerciseSummary());

@@ -93,3 +93,7 @@ alter publication supabase_realtime add table workout_exercises, entries;
 -- ---------- Member order ----------
 -- The order picked during the workout's first set, shared by every phone
 alter table workouts add column member_order jsonb;
+
+-- ---------- Split groups ----------
+-- When an exercise is done, so a phone can tell whether another group is still on a different exercise
+alter table workout_exercises add column finished_at timestamptz;
