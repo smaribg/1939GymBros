@@ -1370,8 +1370,8 @@ async function logView(mount, wid, mode, id) {
         return `
           <div class="set-row current ${x.done ? 'done' : ''}" data-step>
             ${cells}
-            <input inputmode="decimal" enterkeyhint="next" data-f="weight" value="${esc(weight)}" placeholder="kg" aria-label="Weight" autocomplete="off">
-            <input inputmode="numeric" enterkeyhint="go" data-f="reps" value="${esc(x.reps)}" placeholder="reps" aria-label="Reps" autocomplete="off">
+            <input readonly data-f="weight" value="${esc(weight)}" placeholder="kg" aria-label="Weight">
+            <input readonly data-f="reps" value="${esc(x.reps)}" placeholder="reps" aria-label="Reps">
             <span class="tick">${TICK}</span>
           </div>`;
       }
@@ -1421,6 +1421,7 @@ async function logView(mount, wid, mode, id) {
   }
 
   function render() {
+    closePad();
     if (cursor && !eligible(cursor.r, cursor.i)) cursor = nextTodo(cursor); // e.g. a stale saved position
     photoEl.hidden = !!cursor || choosing;
     if (choosing) renderPick(); else if (cursor) renderStep(); else renderList();
@@ -1556,19 +1557,87 @@ async function logView(mount, wid, mode, id) {
   });
 
   // Enter on the keyboard: kg -> reps -> next
-  body.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' || !e.target.closest('[data-step]')) return;
-    e.preventDefault();
-    if (e.target.dataset.f === 'weight') body.querySelector('[data-step] [data-f="reps"]').focus();
-    else guidedAction('next');
+  // ----- kg / reps pad: tapping a box of the current set opens buttons for it, centred where you tapped -----
+
+  const padEl = document.createElement('div');
+  padEl.className = 'pad-layer';
+  padEl.hidden = true;
+  document.body.appendChild(padEl);
+  onLeave(() => padEl.remove());
+  const PAD_STEPS = { weight: [1, 5, 6, 10], reps: [1, 2] };
+  const KEYBOARD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h1M10.5 10h1M14.5 10h1M6.5 14h11"/></svg>';
+  let padField = null, padTyping = false;
+  const padInput = () => body.querySelector(`[data-step] [data-f="${padField}"]`);
+  const fmtNum = n => String(Math.round(n * 100) / 100);
+
+  function openPad(field, typing) {
+    padField = field;
+    padTyping = !!typing;
+    const input = padInput();
+    if (!input) return closePad();
+    input.blur();
+    body.querySelectorAll('[data-step] input').forEach(x => x.classList.toggle('open', x === input));
+    const kg = field === 'weight';
+    const chip = n => `<button class="chip ${n < 0 ? 'minus' : ''}" data-add="${n}">${n < 0 ? '−' : '+'}${Math.abs(n)}</button>`;
+    const steps = PAD_STEPS[field];
+    padEl.innerHTML = `
+      <div class="scrim" data-pad-close></div>
+      <div class="pad ${kg ? 'kg' : 'reps'}">
+        <div class="pad-head">
+          <span class="label">${kg ? 'Weight' : 'Reps'}</span>
+          <span class="value"><span data-pad-value>${esc(input.value || '0')}</span><small>${kg ? 'kg' : 'reps'}</small></span>
+          <button class="btn small kbd" data-pad-type>${KEYBOARD}${padTyping ? 'Buttons' : 'Type'}</button>
+        </div>
+        ${padTyping
+          ? `<input inputmode="${kg ? 'decimal' : 'numeric'}" enterkeyhint="done" data-pad-typed value="${esc(input.value)}" aria-label="${kg ? 'Weight' : 'Reps'}" autocomplete="off">`
+          : `<div class="chips" style="--cols:${steps.length}">${steps.map(chip).join('')}</div>
+             <div class="chips" style="--cols:${steps.length}">${steps.map(n => chip(-n)).join('')}</div>`}
+        <button class="btn primary" data-pad-close>Done</button>
+      </div>`;
+    padEl.hidden = false;
+    // Centred on the box that was tapped (so the finger lands in the middle), kept on screen; at the top while
+    // typing, so the keyboard doesn't cover it
+    const pad = padEl.querySelector('.pad'), r = input.getBoundingClientRect();
+    const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+    pad.style.left = `${clamp(r.left + r.width / 2 - pad.offsetWidth / 2, 12, innerWidth - pad.offsetWidth - 12)}px`;
+    pad.style.top = padTyping ? 'max(12px, env(safe-area-inset-top))'
+      : `${clamp(r.top + r.height / 2 - pad.offsetHeight / 2, 12, innerHeight - pad.offsetHeight - 12)}px`;
+    padEl.querySelector('[data-pad-typed]')?.focus();
+  }
+  function closePad() {
+    padField = null;
+    padEl.hidden = true;
+    padEl.innerHTML = '';
+    body.querySelectorAll('[data-step] input.open').forEach(x => x.classList.remove('open'));
+  }
+  function setPadValue(value) {
+    padInput().value = value;
+    padEl.querySelector('[data-pad-value]').textContent = value || '0';
+  }
+
+  padEl.addEventListener('click', e => {
+    const b = e.target.closest('[data-add], [data-pad-type], [data-pad-close]');
+    if (!b) return;
+    if (b.dataset.add) setPadValue(fmtNum(Math.max(0, (num(padInput().value) ?? 0) + +b.dataset.add)));
+    else if (b.hasAttribute('data-pad-type')) openPad(padField, !padTyping);
+    else closePad();
+  });
+  padEl.addEventListener('input', e => {
+    if (e.target.matches('[data-pad-typed]')) setPadValue(e.target.value.trim());
+  });
+  padEl.addEventListener('focusin', e => { if (e.target.matches('[data-pad-typed]')) e.target.select(); });
+  padEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('[data-pad-typed]')) { e.preventDefault(); closePad(); }
   });
 
   // Values are usually prefilled, so tapping a box selects it and typing replaces it
   body.addEventListener('focusin', e => {
-    if (e.target.matches('.set-row input')) e.target.select();
+    if (e.target.matches('.set-row input:not([readonly])')) e.target.select();
   });
 
   body.addEventListener('click', e => {
+    const box = e.target.closest('[data-step] input[data-f]');
+    if (box) return openPad(box.dataset.f);
     const jump = e.target.closest('[data-jump]');
     if (jump && cursor) {
       commitStep();

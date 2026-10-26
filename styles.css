@@ -431,8 +431,35 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 .set-row.upcoming { opacity: 0.45; }
 .set-row.current { background: rgba(240, 98, 42, 0.07); box-shadow: inset 0 0 0 2px var(--accent); }
 .set-row.current .set-no { background: var(--accent); color: var(--accent-ink); }
-.set-row.current input { min-height: 48px; font-size: 20px; }
+.set-row.current input { min-height: 48px; font-size: 20px; cursor: pointer; }
 .set-row.current input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.set-row.current input.open { border-color: var(--cream); box-shadow: 0 0 0 2px var(--cream); }
+
+/* kg / reps pad: opens over a darkened screen, centred on the box that was tapped */
+.pad-layer .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.5); }
+.pad {
+  position: fixed; z-index: 21; width: min(340px, calc(100vw - 24px)); padding: 12px;
+  background: #1c1c1c; border: 1px solid #343130; border-radius: 18px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  animation: pad-in 0.14s ease-out;
+}
+@keyframes pad-in { from { transform: scale(0.94); opacity: 0; } }
+.pad-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pad-head .label { color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.pad-head .value { font-size: 30px; font-weight: 700; line-height: 1; }
+.pad-head .value small { margin-left: 3px; color: var(--muted); font-size: 14px; font-weight: 500; }
+.pad-head .kbd { margin-left: auto; flex-direction: row; gap: 6px; }
+.chips { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); gap: 6px; margin-bottom: 6px; }
+/* Same color code as the set table: kg blue, reps grey; taking off is the outlined row */
+.chip {
+  min-height: 56px; border-radius: 12px; cursor: pointer; font: inherit; font-size: 18px; font-weight: 700;
+  background: var(--kg-bg); border: 1px solid var(--kg-border); color: var(--text);
+}
+.chip.minus { background: transparent; color: var(--kg); }
+.pad.reps .chip { background: #2a2a2a; border-color: #363636; }
+.pad.reps .chip.minus { background: transparent; color: var(--muted); }
+.chip:active { filter: brightness(1.35); }
+.pad input { margin-bottom: 6px; font-size: 24px; font-weight: 700; text-align: center; }
+.pad .btn.primary { width: 100%; min-height: 48px; margin-top: 6px; }
 .val {
   display: flex;
   align-items: center;
