@@ -26,15 +26,6 @@ const act = fn => async e => {
   try { await fn(e); } catch (err) { console.error(err); alert(err.message || err); }
 };
 
-function shuffle(list) {
-  const a = [...list];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 // "60kg × 10", or "10 reps" without weight
 const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);
 
@@ -991,10 +982,11 @@ async function logView(mount, wid, mode, id) {
     exercise = check(await sb.from('exercises').select('id, name, photo_path').eq('id', id).single());
   }
 
-  const [allMembers, last, siblings] = await Promise.all([
+  const [allMembers, last, siblings, workout] = await Promise.all([
     sb.from('members').select('id, name, active').order('created_at').then(check),
     lastTime(exercise.id, wid, weCreated),
     sb.from('workout_exercises').select('id, created_at, entries(member_id, absent)').eq('workout_id', wid).then(check),
+    sb.from('workouts').select('*').eq('id', wid).maybeSingle().then(check),
   ]);
   const existingBy = new Map(existing.map(e => [e.member_id, e]));
   // Whoever was not here in the latest other exercise of this workout is still not here
@@ -1052,21 +1044,32 @@ async function logView(mount, wid, mode, id) {
       : { absent: wasAbsent.get(m.id) === true, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
     if (!ex && state[m.id].absent) inferred.add(m.id);
   }
-  // Guided flow: members take turns, each doing their next set. The order is shuffled once per workout
-  // (on this phone) and kept for every exercise after that.
+  // Guided flow: members take turns, each doing their next set. On the workout's first exercise the order is picked
+  // as set 1 goes (whoever goes next is tapped), then kept for every set and exercise after that. It's stored on the
+  // workout so every phone uses the same one.
   const orderKey = `order:${wid}`;
-  let order = saved.order || draft.load(orderKey);
+  let picking = !!saved.picking; // picking the order: `order` holds whoever has been picked so far
+  let order = saved.order || workout?.member_order || draft.load(orderKey);
   if (order) {
     order = order.filter(mid => state[mid]);
-    order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
+    if (!picking) order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
   }
   let cursor = order ? saved.cursor || null : null; // { r: set index, i: index in order } while guided
+  let choosing = false; // showing "who's next?"
   let resume = saved.resume || null; // { r, mid }: where the guided flow was last, so Continue picks up there
   let showList = null; // null: closed while there are sets to do, open once everything is done
-  const saveDraft = () => draft.save(draftKey, { members: state, order, cursor, resume, base: Object.fromEntries(savedSig) });
+  const saveDraft = () => draft.save(draftKey, { members: state, order, picking, cursor, resume, base: Object.fromEntries(savedSig) });
+  let sharedOrder = JSON.stringify(workout?.member_order ?? null);
   const persist = () => {
     saveDraft();
-    if (order) draft.save(orderKey, order);
+    if (order && !picking) {
+      draft.save(orderKey, order);
+      if (JSON.stringify(order) !== sharedOrder) {
+        sharedOrder = JSON.stringify(order);
+        sb.from('workouts').update({ member_order: order }).eq('id', wid)
+          .then(({ error }) => { if (error) console.warn('Order not shared:', error.message); });
+      }
+    }
     scheduleSave();
   };
 
@@ -1282,7 +1285,7 @@ async function logView(mount, wid, mode, id) {
   function renderList() {
     const anyDone = members.some(m => state[m.id].sets.some(x => x.done));
     const todo = hasTodo();
-    const ordered = order ? order.map(mid => memberById.get(mid)).filter(Boolean) : members;
+    const ordered = order ? [...order.map(mid => memberById.get(mid)).filter(Boolean), ...members.filter(m => !order.includes(m.id))] : members;
     const present = ordered.filter(m => !state[m.id].absent);
     const absent = ordered.filter(m => state[m.id].absent);
     body.innerHTML = `
@@ -1377,7 +1380,7 @@ async function logView(mount, wid, mode, id) {
         <div class="step-name">${esc(m.name)}</div>
         <div class="set-head"><span>Set</span><span>Previous</span><span>kg</span><span>Reps</span><span>${TICK}</span></div>
         ${s.sets.map(row).join('')}
-        <button class="btn primary big" data-g="next">Next →<small>${next ? `${esc(memberById.get(order[next.i]).name)} · set ${next.r + 1}` : 'Last one'}</small></button>
+        <button class="btn primary big" data-g="next">Next →<small>${esc(nextLabel(next))}</small></button>
         <div class="row">
           <button class="btn small" data-g="back" ${isFirst ? 'disabled' : ''}>← Back</button>
           <button class="btn small ghost" data-g="absent">Not here</button>
@@ -1389,10 +1392,28 @@ async function logView(mount, wid, mode, id) {
     bottom.innerHTML = '';
   }
 
+  // "Who's next?" while picking the order during the first set
+  function renderPick() {
+    const picked = order.filter(mid => state[mid] && !state[mid].absent).map(mid => memberById.get(mid).name);
+    body.innerHTML = `
+      <div class="step">
+        <div class="step-meta">Set 1 · picking the order</div>
+        <div class="step-name">${order.length ? 'Who’s next?' : 'Who’s first?'}</div>
+        <div class="pick-grid">${toPick().map(m => `<button class="btn" data-pick="${m.id}">${esc(m.name)}</button>`).join('')}</div>
+        ${picked.length ? `<p class="muted small">Order so far: ${esc(picked.join(' → '))}</p>` : ''}
+        <div class="row">
+          ${order.length ? '<button class="btn small" data-g="back">← Back</button>' : ''}
+          <button class="btn small ghost" data-g="stop">Show list</button>
+        </div>
+      </div>
+    `;
+    bottom.innerHTML = '';
+  }
+
   function render() {
     if (cursor && !eligible(cursor.r, cursor.i)) cursor = nextTodo(cursor); // e.g. a stale saved position
-    photoEl.hidden = !!cursor;
-    if (cursor) renderStep(); else renderList();
+    photoEl.hidden = !!cursor || choosing;
+    if (choosing) renderPick(); else if (cursor) renderStep(); else renderList();
   }
 
   // Writes the step's inputs into state (and confirms the set if asked); returns false if reps are missing
@@ -1415,13 +1436,54 @@ async function logView(mount, wid, mode, id) {
     render();
   }
 
+  // ----- picking the order: whoever does set 1 next is tapped, until everyone here has done it -----
+
+  // Here, with a first set still to do, and not picked yet
+  const toPick = () => members.filter(m => {
+    const s = state[m.id];
+    return !s.absent && s.sets[0] && !s.sets[0].done && !order.includes(m.id);
+  });
+  // After a set while picking: someone picked whose set 1 isn't done (after Back), else "who's next?", else the
+  // order is complete: everyone else goes on the end and it's the order from now on
+  function pickedNext(from) {
+    const again = order.findIndex((mid, i) => i !== from?.i && isTodo({ r: 0, i }));
+    if (again >= 0) return move({ r: 0, i: again });
+    if (toPick().length === 1) return pick(toPick()[0].id); // only one left: no need to ask
+    if (toPick().length) {
+      choosing = true;
+      return move(null);
+    }
+    picking = false;
+    choosing = false;
+    order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
+    move(nextTodo(from));
+  }
+  const goOn = from => (picking ? pickedNext(from) : move(nextTodo(from)));
+  // Who Next leads to, from the step on screen (the same choices as pickedNext while picking)
+  function nextLabel(next) {
+    if (picking) {
+      const again = order.findIndex((_, i) => i !== cursor.i && isTodo({ r: 0, i }));
+      const left = toPick();
+      if (again >= 0) return `${memberById.get(order[again]).name} · set 1`;
+      if (left.length > 1) return 'Pick who’s next';
+      if (left.length === 1) return `${left[0].name} · set 1`;
+    }
+    return next ? `${memberById.get(order[next.i]).name} · set ${next.r + 1}` : 'Last one';
+  }
+  function begin() {
+    if (!order) { order = []; picking = true; } // first exercise of the workout
+    if (picking) return pickedNext(null);
+    move(nextTodo(null));
+  }
+
   function guidedAction(action) {
     const mid = cursor && order[cursor.i];
     if (action === 'start') {
-      if (!order) order = shuffle(members.map(m => m.id));
       // Continue where we left off
-      const at = resume && order.includes(resume.mid) ? { r: resume.r, i: order.indexOf(resume.mid) } : null;
-      move(at && isTodo(at) ? at : nextTodo(at));
+      const at = order && resume && order.includes(resume.mid) ? { r: resume.r, i: order.indexOf(resume.mid) } : null;
+      if (at && isTodo(at)) move(at);
+      else if (at && !picking) move(nextTodo(at));
+      else begin();
     } else if (action === 'round') {
       // Add a set for everyone who did the full number of sets
       const n = rounds();
@@ -1429,8 +1491,7 @@ async function logView(mount, wid, mode, id) {
         const s = state[m.id];
         if (!s.absent && s.sets.length === n) s.sets.push(copySet(s.sets[n - 1]));
       }
-      if (!order) order = shuffle(members.map(m => m.id));
-      move(nextTodo(null));
+      begin();
     } else if (action === 'next') {
       if (!commitStep(true)) {
         const reps = body.querySelector('[data-f="reps"]');
@@ -1440,22 +1501,36 @@ async function logView(mount, wid, mode, id) {
       }
       cheerIfBest(mid, cursor.r);
       carryReps(mid, cursor.r);
-      move(nextTodo(cursor));
+      goOn(cursor);
     } else if (action === 'back') {
+      if (choosing) {
+        // back to whoever was picked last
+        choosing = false;
+        const i = order.findLastIndex((_, j) => eligible(0, j));
+        return move(i >= 0 ? { r: 0, i } : null);
+      }
       commitStep();
       const prev = slots().filter(p => after(cursor, p)).pop();
       if (prev) move(prev);
     } else if (action === 'absent') {
       state[mid].absent = true;
-      move(nextTodo(cursor));
+      goOn(cursor);
     } else if (action === 'done') {
       state[mid].sets.splice(cursor.r); // drop this and any later sets
-      move(nextTodo(cursor));
+      goOn(cursor);
     } else if (action === 'stop') {
-      commitStep();
+      if (cursor) commitStep();
+      choosing = false;
       showList = true;
       move(null);
     }
+  }
+
+  // Picked as the next one to do set 1
+  function pick(mid) {
+    order.push(mid);
+    choosing = false;
+    move({ r: 0, i: order.length - 1 });
   }
 
   // ----- events -----
@@ -1493,6 +1568,7 @@ async function logView(mount, wid, mode, id) {
     if (!b) return;
     const d = b.dataset;
     if (d.g) return guidedAction(d.g);
+    if (d.pick) return pick(d.pick);
     if (b.hasAttribute('data-remove')) return removeExercise();
     if (b.hasAttribute('data-toggle-list')) {
       showList = !listOpen();
@@ -1513,7 +1589,7 @@ async function logView(mount, wid, mode, id) {
       inferred.delete(d.absent); // chosen here now, so it's saved like any other change
       if (!s.absent && !s.sets.length) s.sets.push(copySet(last.get(d.absent)?.sets[0]));
       // Latecomers go to the back of the queue
-      if (!s.absent && order) order = [...order.filter(mid => mid !== d.absent), d.absent];
+      if (!s.absent && order && !picking) order =[...order.filter(mid => mid !== d.absent), d.absent];
     } else if (d.addset) {
       const sets = state[d.addset].sets;
       sets.push(copySet(last.get(d.addset)?.sets[sets.length] || sets[sets.length - 1])); // last time's set, or a copy of the previous one

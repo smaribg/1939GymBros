@@ -341,6 +341,9 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .step { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; }
 .step-meta { color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
 .step-name { font-size: 38px; font-weight: 600; line-height: 1.1; margin: 4px 0 8px; }
+/* "Who's next?": one big button per member */
+.pick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 12px; }
+.pick-grid .btn { min-height: 60px; font-size: 18px; font-weight: 600; }
 .step .btn.big { margin-bottom: 12px; }
 
 /* ---------- misc ---------- */
