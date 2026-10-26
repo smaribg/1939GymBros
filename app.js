@@ -1411,6 +1411,7 @@ async function logView(mount, wid, mode, id) {
         <div class="step-name">${order.length ? 'Who’s next?' : 'Who’s first?'}</div>
         <div class="pick-grid">${toPick().map(m => `<button class="btn" data-pick="${m.id}">${esc(m.name)}</button>`).join('')}</div>
         ${picked.length ? `<p class="muted small">Order so far: ${esc(picked.join(' → '))}</p>` : ''}
+        ${order.length ? '<button class="btn block" data-g="everyone">That’s everyone<small>The rest are not here</small></button>' : ''}
         <div class="row">
           ${order.length ? '<button class="btn small" data-g="back">← Back</button>' : ''}
           <button class="btn small ghost" data-g="stop">Show list</button>
@@ -1529,6 +1530,14 @@ async function logView(mount, wid, mode, id) {
     } else if (action === 'done') {
       state[mid].sets.splice(cursor.r); // drop this and any later sets
       goOn(cursor);
+    } else if (action === 'everyone') {
+      // Whoever hasn't been picked isn't here; that completes the order
+      for (const m of toPick()) {
+        state[m.id].absent = true;
+        inferred.delete(m.id);
+      }
+      choosing = false;
+      pickedNext({ r: 0, i: order.length - 1 });
     } else if (action === 'stop') {
       if (cursor) commitStep();
       choosing = false;
