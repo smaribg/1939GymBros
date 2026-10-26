@@ -10,101 +10,102 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="styles.css?v=31">
   <style>
-    /* Preview only: three ways to change kg without the keyboard */
+    /* Preview only: tap the kg / reps box to get buttons for it */
     .variants { display: flex; width: 100%; margin: 4px 0 6px; }
     .variants button { flex: 1; }
     .about { color: var(--muted); font-size: 14px; margin: 0 0 14px; min-height: 40px; }
 
-    /* A: chips that add or take off kg */
-    .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 2px 0 6px; }
+    .step { position: relative; }
+    /* the kg / reps boxes of the current set are buttons now */
+    .set-row .cell {
+      min-height: 48px; border-radius: 10px; font: inherit; font-size: 20px; font-weight: 700; color: var(--text); cursor: pointer;
+    }
+    .set-row .cell.kg { background: var(--kg-bg); border: 1px solid var(--kg-border); }
+    .set-row .cell.reps { background: #242424; border: 1px solid #2e2e2e; }
+    .set-row .cell.open { border-color: var(--cream); box-shadow: 0 0 0 2px var(--cream); }
+
+    /* the panel */
+    .pad { background: #1c1c1c; border: 1px solid #343130; border-radius: 18px; padding: 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6); }
+    .pad-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .pad-head .label { color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .pad-head .value { font-size: 30px; font-weight: 700; line-height: 1; }
+    .pad-head .value small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+    .pad-head .kbd { margin-left: auto; display: inline-flex; flex-direction: row; gap: 6px; }
+    .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px; }
     .chip {
-      min-height: 46px; border-radius: 12px; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+      min-height: 50px; border-radius: 12px; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
       background: var(--kg-bg); border: 1px solid var(--kg-border); color: var(--text);
     }
     .chip.minus { background: transparent; color: var(--kg); }
-    .chip:active { filter: brightness(1.3); }
-    .chips.reps, .chips.four { grid-template-columns: repeat(4, 1fr); }
-    .chips.eight { grid-template-columns: repeat(8, 1fr); gap: 4px; }
-    .chips.eight .chip { min-height: 44px; font-size: 14px; padding: 0; border-radius: 10px; }
-    .chips.reps .chip { background: #242424; border-color: #2e2e2e; }
-    .chips.reps .chip.minus { background: transparent; color: var(--muted); }
-    .chip-label { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin: 10px 0 4px; }
+    .pad.reps .chip { background: #2a2a2a; border-color: #363636; }
+    .pad.reps .chip.minus { background: transparent; color: var(--muted); }
+    .chip:active { filter: brightness(1.35); }
+    .pad .btn.primary { width: 100%; margin-top: 6px; min-height: 48px; }
+    .pad input { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 6px; }
 
-    /* B: big steppers */
-    .stepper-box { display: grid; gap: 10px; margin: 6px 0 4px; }
-    .big-stepper { display: grid; grid-template-columns: 64px 1fr 64px; gap: 8px; align-items: center; border-radius: 16px; padding: 8px; }
-    .big-stepper.kg { background: var(--kg-bg); border: 1px solid var(--kg-border); }
-    .big-stepper.reps { background: #242424; border: 1px solid #2e2e2e; }
-    .big-stepper button {
-      height: 56px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(0, 0, 0, 0.25);
-      color: var(--text); font: inherit; font-size: 28px; font-weight: 600; cursor: pointer;
+    /* pop-up: right under the set row, with a little arrow */
+    .pop { position: absolute; left: 12px; right: 12px; z-index: 5; }
+    .pop::before {
+      content: ''; position: absolute; top: -7px; left: var(--arrow, 50%); width: 12px; height: 12px; margin-left: -6px;
+      background: #1c1c1c; border-left: 1px solid #343130; border-top: 1px solid #343130; transform: rotate(45deg);
     }
-    .big-stepper button:active { background: rgba(255, 255, 255, 0.1); }
-    .big-stepper .value { text-align: center; line-height: 1; }
-    .big-stepper .value input { background: transparent; border: none; box-shadow: none; text-align: center; font-size: 34px; font-weight: 700; padding: 0; min-height: 40px; }
-    .big-stepper .value span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
-    .step-size { display: flex; gap: 6px; justify-content: center; align-items: center; color: var(--muted); font-size: 13px; }
-    .step-size .seg { margin: 0; }
 
-    /* C: pick a weight from a strip */
-    .strip { display: flex; gap: 6px; overflow-x: auto; margin: 4px -20px 6px; padding: 4px 20px; scrollbar-width: none; scroll-snap-type: x mandatory; }
-    .strip::-webkit-scrollbar { display: none; }
-    .strip button {
-      flex: none; min-width: 64px; min-height: 52px; border-radius: 12px; scroll-snap-align: center;
-      background: transparent; border: 1px solid var(--kg-border); color: var(--kg); font: inherit; font-size: 18px; font-weight: 700; cursor: pointer;
+    /* bottom sheet */
+    .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.45); }
+    .sheet-pad {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 640px; margin: 0 auto;
+      border-radius: 22px 22px 0 0; padding: 14px 16px; padding-bottom: max(16px, env(safe-area-inset-bottom));
+      animation: up 0.18s ease-out;
     }
-    .strip button.on { background: var(--kg-bg); color: var(--text); border-color: var(--kg); box-shadow: 0 0 0 1px var(--kg); }
-    .strip button small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0.04em; }
+    .sheet-pad .chip { min-height: 56px; font-size: 18px; }
+    @keyframes up { from { transform: translateY(40px); opacity: 0; } }
   </style>
 </head>
 <body>
   <main>
     <h1 style="font-size:30px">Weight buttons</h1>
-    <p class="sub">Preview only, nothing is saved. Try each version, then tell me which you like.</p>
+    <p class="sub">Preview only, nothing is saved. Tap the kg or reps box of the orange set.</p>
     <div class="seg variants" data-variants>
-      <button data-v="A2" class="on">Two rows</button>
-      <button data-v="A1">One row</button>
-      <button data-v="A">Old (5)</button>
+      <button data-v="pop" class="on">Pop-up</button>
+      <button data-v="sheet">From the bottom</button>
     </div>
     <p class="about" data-about></p>
     <div data-step></div>
   </main>
+  <div data-overlay></div>
   <div id="toast" class="toast" role="status"></div>
 
   <script>
     const TICK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-    const KG8 = [-10, -6, -5, -1, 1, 5, 6, 10];
-    const chip = (n, attr) => `<button class="chip ${n < 0 ? 'minus' : ''}" data-${attr}="${n}">${n < 0 ? '−' : '+'}${Math.abs(n)}</button>`;
-    const REPS = `
-        <div class="chip-label">reps</div>
-        <div class="chips reps">${[-2, -1, 1, 2].map(n => chip(n, 'rep')).join('')}</div>`;
+    const KBD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h1M10.5 10h1M14.5 10h1M6.5 14h11"/></svg>';
     const ABOUT = {
-      A2: 'Takes off kg on the top row, adds on the bottom row. ±1 for fine-tuning, ±6 for the machine.',
-      A1: 'All eight kg buttons in one row: smaller, but takes less space.',
-      A: 'Buttons under the set that add or take off kg (and reps). You can still tap the box to type.',
-      B: 'The current set gets big − / + buttons. Choose how much one tap changes the kg. Tap the number to type.',
-      C: 'Swipe a strip of weights around the current one and tap the one you lifted. Last time is marked.',
+      pop: 'A small panel opens right under the set. Tap outside it (or Done) to close.',
+      sheet: 'A panel slides up from the bottom, where your thumb is. Tap above it (or Done) to close.',
     };
+    const STEPS = { w: [-10, -6, -5, -1, 1, 5, 6, 10], r: [-2, -1, 1, 2] };
     const prev = [{ w: 40, r: 10 }, { w: 42.5, r: 8 }, { w: 42.5, r: 8 }, { w: 45, r: 6 }];
-    let variant = 'A2', stepSize = 5;
-    let sets, cur;
+    let variant = 'pop';
+    let sets, cur, open = null, typing = false; // open: 'w' | 'r'
+
     function reset() {
       sets = prev.map(p => ({ w: p.w, r: p.r, done: false }));
       sets[0].done = true;
       cur = 1;
+      open = null;
     }
     reset();
 
     const fmt = n => String(Math.round(n * 100) / 100);
     const el = document.querySelector('[data-step]');
+    const overlay = document.querySelector('[data-overlay]');
 
     function row(s, j) {
       const cells = `<span class="set-no">${j + 1}</span><span class="prev">${prev[j].w}kg × ${prev[j].r}</span>`;
       if (j === cur) return `
-        <div class="set-row current">
+        <div class="set-row current" data-current>
           ${cells}
-          <input inputmode="decimal" data-f="w" value="${fmt(s.w)}" aria-label="Weight">
-          <input inputmode="numeric" data-f="r" value="${s.r}" aria-label="Reps">
+          <button class="cell kg ${open === 'w' ? 'open' : ''}" data-open="w">${fmt(s.w)}</button>
+          <button class="cell reps ${open === 'r' ? 'open' : ''}" data-open="r">${s.r}</button>
           <span class="tick">${TICK}</span>
         </div>`;
       return `
@@ -113,74 +114,31 @@
         </div>`;
     }
 
-    function controls() {
-      const s = sets[cur];
-      if (variant === 'A2') return `
-        <div class="chip-label">kg</div>
-        <div class="chips four">${KG8.slice(0, 4).map(n => chip(n, 'add')).join('')}</div>
-        <div class="chips four">${KG8.slice(4).map(n => chip(n, 'add')).join('')}</div>
-        ${REPS}`;
-      if (variant === 'A1') return `
-        <div class="chip-label">kg</div>
-        <div class="chips eight">${KG8.map(n => chip(n, 'add')).join('')}</div>
-        ${REPS}`;
-      if (variant === 'A') return `
-        <div class="chip-label">kg</div>
-        <div class="chips">
-          <button class="chip minus" data-add="-5">−5</button>
-          <button class="chip minus" data-add="-2.5">−2.5</button>
-          <button class="chip" data-add="2.5">+2.5</button>
-          <button class="chip" data-add="5">+5</button>
-          <button class="chip" data-add="10">+10</button>
-        </div>
-        <div class="chip-label">reps</div>
-        <div class="chips reps">
-          <button class="chip minus" data-rep="-2">−2</button>
-          <button class="chip minus" data-rep="-1">−1</button>
-          <button class="chip" data-rep="1">+1</button>
-          <button class="chip" data-rep="2">+2</button>
-        </div>`;
-      if (variant === 'B') return `
-        <div class="stepper-box">
-          <div class="big-stepper kg">
-            <button data-add="${-stepSize}" aria-label="Less kg">−</button>
-            <div class="value"><input inputmode="decimal" data-f="w" value="${fmt(s.w)}" aria-label="Weight"><span>kg</span></div>
-            <button data-add="${stepSize}" aria-label="More kg">+</button>
-          </div>
-          <div class="step-size">One tap =
-            <div class="seg">${[1.25, 2.5, 5, 10].map(n => `<button data-size="${n}" class="${n === stepSize ? 'on' : ''}">${n} kg</button>`).join('')}</div>
-          </div>
-          <div class="big-stepper reps">
-            <button data-rep="-1" aria-label="Fewer reps">−</button>
-            <div class="value"><input inputmode="numeric" data-f="r" value="${s.r}" aria-label="Reps"><span>reps</span></div>
-            <button data-rep="1" aria-label="More reps">+</button>
-          </div>
-        </div>`;
-      // C: weights around the current one, every 2.5 kg
-      const opts = [];
-      for (let w = Math.max(0, s.w - 20); w <= s.w + 30; w += 2.5) opts.push(w);
+    function padHtml(cls) {
+      const s = sets[cur], f = open;
+      const v = f === 'w' ? s.w : s.r;
       return `
-        <div class="chip-label">kg · swipe for more</div>
-        <div class="strip" data-strip>${opts.map(w => `
-          <button data-set="${w}" class="${w === s.w ? 'on' : ''}">${fmt(w)}${w === prev[cur].w ? '<small>last time</small>' : ''}</button>`).join('')}
-        </div>
-        <div class="chip-label">reps</div>
-        <div class="chips reps">
-          <button class="chip minus" data-rep="-2">−2</button>
-          <button class="chip minus" data-rep="-1">−1</button>
-          <button class="chip" data-rep="1">+1</button>
-          <button class="chip" data-rep="2">+2</button>
+        <div class="pad ${f === 'w' ? 'kg' : 'reps'} ${cls}" data-pad>
+          <div class="pad-head">
+            <span class="label">${f === 'w' ? 'Weight' : 'Reps'}</span>
+            <span class="value" data-value>${fmt(v)}<small>${f === 'w' ? 'kg' : 'reps'}</small></span>
+            <button class="btn small kbd" data-kbd>${KBD}Type</button>
+          </div>
+          ${typing
+            ? `<input inputmode="${f === 'w' ? 'decimal' : 'numeric'}" data-type value="${fmt(v)}">`
+            : `${f === 'w'
+              ? `<div class="chips">${STEPS.w.slice(0, 4).map(chip).join('')}</div><div class="chips">${STEPS.w.slice(4).map(chip).join('')}</div>`
+              : `<div class="chips">${STEPS.r.map(chip).join('')}</div>`}`}
+          <button class="btn primary" data-close>Done</button>
         </div>`;
     }
+    const chip = n => `<button class="chip ${n < 0 ? 'minus' : ''}" data-add="${n}">${n < 0 ? '−' : '+'}${Math.abs(n)}</button>`;
 
     function render() {
       document.querySelector('[data-about]').textContent = ABOUT[variant];
+      overlay.innerHTML = '';
       if (cur >= sets.length) {
-        el.innerHTML = `
-          <div class="step">
-            <div class="step-name">All done 💪</div>
-            <button class="btn primary big" data-again>Try again</button>
-          </div>`;
+        el.innerHTML = `<div class="step"><div class="step-name">All done 💪</div><button class="btn primary big" data-again>Try again</button></div>`;
         return;
       }
       el.innerHTML = `
@@ -189,11 +147,21 @@
           <div class="step-name">Siggi</div>
           <div class="set-head"><span>Set</span><span>Previous</span><span>kg</span><span>Reps</span><span>${TICK}</span></div>
           ${sets.map(row).join('')}
-          ${controls()}
           <button class="btn primary big" data-next>Next →<small>Gummi · set ${cur + 1}</small></button>
         </div>`;
-      // Keep the picked weight in view on the strip
-      el.querySelector('[data-strip] .on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+      if (!open) return;
+      if (variant === 'pop') {
+        // place it under the current row, arrow pointing at the tapped box
+        const step = el.querySelector('.step'), rowEl = el.querySelector('[data-current]'), cell = el.querySelector('.cell.open');
+        step.insertAdjacentHTML('beforeend', padHtml('pop'));
+        const pad = step.querySelector('[data-pad]');
+        const sr = step.getBoundingClientRect(), rr = rowEl.getBoundingClientRect(), cr = cell.getBoundingClientRect();
+        pad.style.top = `${rr.bottom - sr.top + 10}px`;
+        pad.style.setProperty('--arrow', `${cr.left + cr.width / 2 - sr.left - 12}px`);
+      } else {
+        overlay.innerHTML = `<div class="scrim" data-close></div>${padHtml('sheet-pad')}`;
+      }
+      document.querySelector('[data-type]')?.focus();
     }
 
     let toastTimer;
@@ -205,46 +173,53 @@
       toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
     }
 
-    // Only update the values on screen, so a tap doesn't redraw (and scroll) the whole card
+    // Update the numbers without redrawing, so taps don't move anything
     function refreshValues() {
       const s = sets[cur];
-      el.querySelectorAll('[data-f="w"]').forEach(i => { if (document.activeElement !== i) i.value = fmt(s.w); });
-      el.querySelectorAll('[data-f="r"]').forEach(i => { if (document.activeElement !== i) i.value = s.r; });
-      el.querySelectorAll('[data-strip] button').forEach(b => b.classList.toggle('on', +b.dataset.set === s.w));
+      const cellW = el.querySelector('[data-open="w"]'), cellR = el.querySelector('[data-open="r"]');
+      if (cellW) cellW.textContent = fmt(s.w);
+      if (cellR) cellR.textContent = s.r;
+      const val = document.querySelector('[data-value]');
+      if (val) val.firstChild.textContent = fmt(open === 'w' ? s.w : s.r);
     }
 
-    el.addEventListener('click', e => {
-      const b = e.target.closest('button');
-      if (!b) return;
+    document.addEventListener('click', e => {
+      const b = e.target.closest('button, .scrim');
       const s = sets[cur];
-      if (b.dataset.add) { s.w = Math.max(0, s.w + +b.dataset.add); refreshValues(); }
-      else if (b.dataset.rep) { s.r = Math.max(0, s.r + +b.dataset.rep); refreshValues(); }
-      else if (b.dataset.set) { s.w = +b.dataset.set; refreshValues(); }
-      else if (b.dataset.size) { stepSize = +b.dataset.size; render(); }
+      // tap outside the pop-up closes it
+      if (open && variant === 'pop' && !e.target.closest('[data-pad], [data-open]')) { open = null; typing = false; render(); if (!b) return; }
+      if (!b) return;
+      const d = b.dataset;
+      if (d.open) { open = open === d.open ? null : d.open; typing = false; render(); }
+      else if (d.add) {
+        if (open === 'w') s.w = Math.max(0, s.w + +d.add); else s.r = Math.max(0, s.r + +d.add);
+        refreshValues();
+      } else if (b.hasAttribute('data-kbd')) { typing = !typing; render(); }
+      else if (b.hasAttribute('data-close')) { open = null; typing = false; render(); }
       else if (b.hasAttribute('data-next')) {
         s.done = true;
         toast(`Saved ${fmt(s.w)}kg × ${s.r}`);
         cur++;
-        if (sets[cur]) { sets[cur].w = Math.max(sets[cur].w, s.w); }
+        open = null;
+        if (sets[cur]) sets[cur].w = Math.max(sets[cur].w, s.w);
         render();
       } else if (b.hasAttribute('data-again')) { reset(); render(); }
+      else if (d.v) {
+        variant = d.v;
+        document.querySelectorAll('[data-variants] button').forEach(x => x.classList.toggle('on', x === b));
+        reset();
+        render();
+      }
     });
-    el.addEventListener('input', e => {
+    document.addEventListener('input', e => {
+      if (!e.target.matches('[data-type]')) return;
       const v = parseFloat(e.target.value.replace(',', '.'));
       if (!Number.isFinite(v)) return;
-      if (e.target.dataset.f === 'w') sets[cur].w = v; else sets[cur].r = v;
+      if (open === 'w') sets[cur].w = v; else sets[cur].r = v;
       refreshValues();
     });
-    el.addEventListener('focusin', e => { if (e.target.matches('input')) e.target.select(); });
-
-    document.querySelector('[data-variants]').addEventListener('click', e => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      variant = b.dataset.v;
-      document.querySelectorAll('[data-variants] button').forEach(x => x.classList.toggle('on', x === b));
-      reset();
-      render();
-    });
+    document.addEventListener('focusin', e => { if (e.target.matches('[data-type]')) e.target.select(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-type]')) { open = null; typing = false; render(); } });
     render();
   </script>
 </body>
