@@ -23,7 +23,9 @@
     }
     .chip.minus { background: transparent; color: var(--kg); }
     .chip:active { filter: brightness(1.3); }
-    .chips.reps { grid-template-columns: repeat(4, 1fr); }
+    .chips.reps, .chips.four { grid-template-columns: repeat(4, 1fr); }
+    .chips.eight { grid-template-columns: repeat(8, 1fr); gap: 4px; }
+    .chips.eight .chip { min-height: 44px; font-size: 14px; padding: 0; border-radius: 10px; }
     .chips.reps .chip { background: #242424; border-color: #2e2e2e; }
     .chips.reps .chip.minus { background: transparent; color: var(--muted); }
     .chip-label { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin: 10px 0 4px; }
@@ -60,9 +62,9 @@
     <h1 style="font-size:30px">Weight buttons</h1>
     <p class="sub">Preview only, nothing is saved. Try each version, then tell me which you like.</p>
     <div class="seg variants" data-variants>
-      <button data-v="A" class="on">A · Chips</button>
-      <button data-v="B">B · Steppers</button>
-      <button data-v="C">C · Strip</button>
+      <button data-v="A2" class="on">Two rows</button>
+      <button data-v="A1">One row</button>
+      <button data-v="A">Old (5)</button>
     </div>
     <p class="about" data-about></p>
     <div data-step></div>
@@ -71,13 +73,20 @@
 
   <script>
     const TICK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    const KG8 = [-10, -6, -5, -1, 1, 5, 6, 10];
+    const chip = (n, attr) => `<button class="chip ${n < 0 ? 'minus' : ''}" data-${attr}="${n}">${n < 0 ? '−' : '+'}${Math.abs(n)}</button>`;
+    const REPS = `
+        <div class="chip-label">reps</div>
+        <div class="chips reps">${[-2, -1, 1, 2].map(n => chip(n, 'rep')).join('')}</div>`;
     const ABOUT = {
+      A2: 'Takes off kg on the top row, adds on the bottom row. ±1 for fine-tuning, ±6 for the machine.',
+      A1: 'All eight kg buttons in one row: smaller, but takes less space.',
       A: 'Buttons under the set that add or take off kg (and reps). You can still tap the box to type.',
       B: 'The current set gets big − / + buttons. Choose how much one tap changes the kg. Tap the number to type.',
       C: 'Swipe a strip of weights around the current one and tap the one you lifted. Last time is marked.',
     };
     const prev = [{ w: 40, r: 10 }, { w: 42.5, r: 8 }, { w: 42.5, r: 8 }, { w: 45, r: 6 }];
-    let variant = 'A', stepSize = 5;
+    let variant = 'A2', stepSize = 5;
     let sets, cur;
     function reset() {
       sets = prev.map(p => ({ w: p.w, r: p.r, done: false }));
@@ -106,6 +115,15 @@
 
     function controls() {
       const s = sets[cur];
+      if (variant === 'A2') return `
+        <div class="chip-label">kg</div>
+        <div class="chips four">${KG8.slice(0, 4).map(n => chip(n, 'add')).join('')}</div>
+        <div class="chips four">${KG8.slice(4).map(n => chip(n, 'add')).join('')}</div>
+        ${REPS}`;
+      if (variant === 'A1') return `
+        <div class="chip-label">kg</div>
+        <div class="chips eight">${KG8.map(n => chip(n, 'add')).join('')}</div>
+        ${REPS}`;
       if (variant === 'A') return `
         <div class="chip-label">kg</div>
         <div class="chips">
