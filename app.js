@@ -208,10 +208,12 @@ function renderSync() {
 let cleanups = []; // run when the page changes
 const onLeave = fn => cleanups.push(fn);
 
-function subscribe(changes, onChange) {
+// `onReady` runs each time the connection is (re)made: changes saved before that (while connecting, or while the
+// phone was asleep) never arrive as live updates, so it fetches them instead
+function subscribe(changes, onChange, onReady) {
   const ch = sb.channel(`live-${Date.now()}-${Math.random()}`);
   for (const c of changes) ch.on('postgres_changes', { schema: 'public', ...c }, onChange);
-  ch.subscribe();
+  ch.subscribe(status => { if (status === 'SUBSCRIBED') onReady?.(); });
   onLeave(() => sb.removeChannel(ch));
 }
 
@@ -830,7 +832,7 @@ async function workoutView(mount, wid) {
   }));
 
   // Sets logged on another phone show up here as they're saved
-  let refreshTimer = null;
+  let refreshTimer = null, connected = false; // (a reconnect refreshes; the first connect comes right after loading)
   const refresh = () => {
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => router(true), 500);
@@ -839,7 +841,7 @@ async function workoutView(mount, wid) {
   subscribe([
     { event: 'INSERT', table: 'workout_exercises', filter: `workout_id=eq.${wid}` },
     ...(wes.length ? [{ event: '*', table: 'entries', filter: `workout_exercise_id=in.(${wes.map(we => we.id).join(',')})` }] : []),
-  ], refresh);
+  ], refresh, () => { if (connected) refresh(); else connected = true; });
 
   function workoutSummary() {
     return `
@@ -1101,8 +1103,6 @@ async function logView(mount, wid, mode, id) {
     draftKey = `draft2:${wid}:${weId}`;
     saveDraft();
     listen();
-    sb.from('entries').select('member_id, absent, sets').eq('workout_exercise_id', weId)
-      .then(({ data }) => data?.forEach(applyRemote));
   }
   const onWeId = e => { if (e.detail.wid === wid && e.detail.exerciseId === exercise.id) adopt(e.detail.weId); };
   window.addEventListener('gb:weid', onWeId);
@@ -1124,7 +1124,9 @@ async function logView(mount, wid, mode, id) {
 
   function listen() {
     subscribe([{ event: '*', table: 'entries', filter: `workout_exercise_id=eq.${weId}` }],
-      ({ new: row }) => row?.member_id && applyRemote(row));
+      ({ new: row }) => row?.member_id && applyRemote(row),
+      () => sb.from('entries').select('member_id, absent, sets').eq('workout_exercise_id', weId)
+        .then(({ data }) => data?.forEach(applyRemote)));
   }
   // Reps or kg typed in the step on screen and not confirmed yet
   function stepEdited() {
