@@ -985,14 +985,18 @@ async function logView(mount, wid, mode, id) {
   const [allMembers, last, siblings, workout] = await Promise.all([
     sb.from('members').select('id, name, active').order('created_at').then(check),
     lastTime(exercise.id, wid, weCreated),
-    sb.from('workout_exercises').select('id, created_at, entries(member_id, absent)').eq('workout_id', wid).then(check),
+    sb.from('workout_exercises').select('id, created_at, entries(member_id, absent, sets)').eq('workout_id', wid).then(check),
     sb.from('workouts').select('*').eq('id', wid).maybeSingle().then(check),
   ]);
   const existingBy = new Map(existing.map(e => [e.member_id, e]));
   // Whoever was not here in the latest other exercise of this workout is still not here
-  const wasAbsent = new Map();
+  // (but whoever has done sets in this workout is here: a mix-up on one exercise mustn't spread to the next ones)
+  const wasAbsent = new Map(), lifted = new Set();
   for (const we of siblings.filter(x => x.id !== weId).sort(byCreated)) {
-    for (const e of we.entries) wasAbsent.set(e.member_id, e.absent);
+    for (const e of we.entries) {
+      wasAbsent.set(e.member_id, e.absent);
+      if (!e.absent && e.sets.length) lifted.add(e.member_id);
+    }
   }
   const members = allMembers.filter(m => m.active || existingBy.has(m.id));
   const memberById = new Map(members.map(m => [m.id, m]));
@@ -1041,7 +1045,7 @@ async function logView(mount, wid, mode, id) {
     state[m.id] = ex && (ex.absent || ex.sets.length)
       ? { absent: ex.absent, sets: ex.sets.map(x => toInput(x, true)) }
       // Start from what they did last time; they just confirm or adjust each set
-      : { absent: wasAbsent.get(m.id) === true, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
+      : { absent: wasAbsent.get(m.id) === true && !lifted.has(m.id), sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
     if (!ex && state[m.id].absent) inferred.add(m.id);
   }
   // Guided flow: members take turns, each doing their next set. On the workout's first exercise the order is picked
@@ -1151,13 +1155,26 @@ async function logView(mount, wid, mode, id) {
     // Changed here and not uploaded yet: this phone's version wins
     if (sig(rowOf(s)) !== savedSig.get(mid) || pendingRows(outboxItem(wid, exercise.id) || {})[mid]) return;
     const onScreen = cursor && order[cursor.i] === mid;
+    // "Not here" from another phone for someone this phone is logging (their set is on screen, or they've done sets
+    // here) is a mix-up, e.g. "That's everyone" tapped there before their first set arrived: they stay, and are saved
+    // again so the other phone sees them back
+    if (row.absent && !s.absent && (onScreen || s.sets.some(x => x.done))) {
+      savedSig.set(mid, remote);
+      sent.delete(mid);
+      inferred.delete(mid);
+      return scheduleSave();
+    }
     if (onScreen && stepEdited()) return;
     takeRow(s, row);
     savedSig.set(mid, remote);
     sent.delete(mid);
     inferred.delete(mid);
     saveDraft();
-    if (cursor && !onScreen) return; // the step on screen is someone else's
+    if (cursor && !onScreen) { // the step on screen is someone else's; only who's next may have changed
+      const label = body.querySelector('[data-g="next"] small');
+      if (label) label.textContent = nextLabel(nextTodo(cursor));
+      return;
+    }
     // Redraw, keeping the keyboard where it was
     const f = document.activeElement;
     const sel = f?.matches?.('.set-row input')
@@ -1423,6 +1440,10 @@ async function logView(mount, wid, mode, id) {
 
   function render() {
     closePad();
+    if (choosing && !toPick().length) { // everyone left was done on another phone meanwhile
+      choosing = false;
+      return pickedNext(null);
+    }
     if (cursor && !eligible(cursor.r, cursor.i)) cursor = nextTodo(cursor); // e.g. a stale saved position
     photoEl.hidden = !!cursor || choosing;
     if (choosing) renderPick(); else if (cursor) renderStep(); else renderList();
@@ -1465,6 +1486,9 @@ async function logView(mount, wid, mode, id) {
       choosing = true;
       return move(null);
     }
+    finishPicking(from);
+  }
+  function finishPicking(from) {
     picking = false;
     choosing = false;
     order.push(...members.map(m => m.id).filter(mid => !order.includes(mid)));
@@ -1531,13 +1555,14 @@ async function logView(mount, wid, mode, id) {
       state[mid].sets.splice(cursor.r); // drop this and any later sets
       goOn(cursor);
     } else if (action === 'everyone') {
-      // Whoever hasn't been picked isn't here; that completes the order
+      // Whoever hasn't been picked isn't here (except anyone who's done sets in this workout: they're being logged on
+      // another phone); that completes the order
       for (const m of toPick()) {
+        if (lifted.has(m.id)) continue;
         state[m.id].absent = true;
         inferred.delete(m.id);
       }
-      choosing = false;
-      pickedNext({ r: 0, i: order.length - 1 });
+      finishPicking({ r: 0, i: order.length - 1 });
     } else if (action === 'stop') {
       if (cursor) commitStep();
       choosing = false;
@@ -1724,6 +1749,9 @@ async function logView(mount, wid, mode, id) {
   });
 
   if (weId) listen();
+  // New here, but another phone may add it first: from then on this phone gets their sets too
+  else subscribe([{ event: 'INSERT', table: 'workout_exercises', filter: `workout_id=eq.${wid}` }],
+    ({ new: row }) => row?.exercise_id === exercise.id && adopt(row.id));
   render();
 }
 
