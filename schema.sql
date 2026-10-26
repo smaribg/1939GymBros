@@ -83,3 +83,9 @@ begin
   end loop;
 end $$;
 revoke select on members, exercises, workouts, workout_exercises, entries from anon;
+
+-- ---------- Two phones at once ----------
+-- An exercise is only in a workout once (if this fails, a workout already has an exercise twice: remove one first)
+create unique index workout_exercises_once on workout_exercises (workout_id, exercise_id);
+-- Live updates: phones get told when sets are saved on another phone
+alter publication supabase_realtime add table workout_exercises, entries;

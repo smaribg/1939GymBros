@@ -94,6 +94,127 @@ const draft = {
   clear(key) { try { localStorage.removeItem(key); } catch { /* ignore */ } },
 };
 
+// ---------- outbox: sets wait on the phone until they reach the database (gym signal can be bad) ----------
+
+// One item per exercise of a workout: { wid, exerciseId, weId, rows, sending }, rows/sending as { [memberId]: { absent, sets, soft } }.
+// A soft row only fills in a member nobody has saved yet (e.g. "not here" carried over from the last exercise).
+let outbox = draft.load('outbox') || [];
+let flushing = null, retryTimer = null, retryDelay = 3000;
+
+function mergeRows(old = {}, rows) {
+  const out = { ...old };
+  for (const [mid, row] of Object.entries(rows)) out[mid] = { ...row, soft: row.soft && (old[mid]?.soft ?? true) };
+  return out;
+}
+const pendingRows = item => ({ ...item.sending, ...item.rows });
+const outboxItem = (wid, exerciseId) => outbox.find(x => x.wid === wid && x.exerciseId === exerciseId);
+
+function saveOutbox() {
+  draft.save('outbox', outbox);
+  renderSync();
+  window.dispatchEvent(new Event('gb:outbox'));
+}
+
+function queueSave(wid, exerciseId, weId, rows) {
+  let item = outboxItem(wid, exerciseId);
+  if (!item) outbox.push(item = { wid, exerciseId, weId: null, rows: {} });
+  item.weId ||= weId;
+  item.rows = mergeRows(item.rows, rows);
+  saveOutbox();
+}
+
+function dropSaves(wid, exerciseId) {
+  outbox = outbox.filter(x => !(x.wid === wid && x.exerciseId === exerciseId));
+  saveOutbox();
+}
+
+// The workout's row for this exercise, created if it isn't there yet. Shared, so two saves never create it twice.
+const ensuring = new Map();
+function ensureWorkoutExercise(wid, exerciseId) {
+  const key = `${wid}:${exerciseId}`;
+  if (!ensuring.has(key)) {
+    const find = async () => check(await sb.from('workout_exercises').select('id')
+      .eq('workout_id', wid).eq('exercise_id', exerciseId).order('created_at').limit(1))[0]?.id;
+    ensuring.set(key, (async () => {
+      const found = await find();
+      if (found) return found;
+      const { data, error } = await sb.from('workout_exercises').insert({ workout_id: wid, exercise_id: exerciseId }).select('id').single();
+      if (error?.code === '23505') return find(); // another phone added it at the same moment
+      return check({ data, error }).id;
+    })());
+  }
+  const p = ensuring.get(key);
+  p.then(() => ensuring.delete(key), () => ensuring.delete(key));
+  return p;
+}
+
+async function sendItem(item) {
+  if (!session) throw new Error('Locked');
+  item.weId ||= await ensureWorkoutExercise(item.wid, item.exerciseId);
+  window.dispatchEvent(new CustomEvent('gb:weid', { detail: item }));
+  const rows = Object.entries(item.sending).map(([member_id, r]) => ({ workout_exercise_id: item.weId, member_id, absent: r.absent, sets: r.sets, soft: r.soft }));
+  const strip = list => list.map(({ soft, ...r }) => r);
+  const hard = rows.filter(r => !r.soft), soft = rows.filter(r => r.soft);
+  const onConflict = 'workout_exercise_id,member_id';
+  if (hard.length) check(await sb.from('entries').upsert(strip(hard), { onConflict }));
+  if (soft.length) check(await sb.from('entries').upsert(strip(soft), { onConflict, ignoreDuplicates: true }));
+}
+
+// Uploads everything waiting; on failure tries again a bit later (and whenever the phone gets signal back)
+function flushSaves() {
+  clearTimeout(retryTimer);
+  if (flushing) return flushing;
+  if (!outbox.length) return Promise.resolve();
+  flushing = (async () => {
+    renderSync();
+    while (outbox.length) {
+      const item = outbox[0];
+      item.sending = mergeRows(item.sending, item.rows);
+      item.rows = {};
+      saveOutbox();
+      try {
+        await sendItem(item);
+        delete item.sending;
+      } catch (err) {
+        if (err?.code !== '23503') { // 23503: the workout or exercise was deleted meanwhile, nothing left to save to
+          console.error(err);
+          retryTimer = setTimeout(flushSaves, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000);
+          return;
+        }
+        item.rows = {};
+        delete item.sending;
+      }
+      if (!Object.keys(item.rows).length) outbox = outbox.filter(x => x !== item);
+      retryDelay = 3000;
+    }
+  })().finally(() => {
+    flushing = null;
+    saveOutbox();
+  });
+  return flushing;
+}
+
+// Header badge while anything is waiting to be uploaded
+function renderSync() {
+  const btn = $('#sync');
+  const n = outbox.reduce((sum, x) => sum + Object.keys(pendingRows(x)).length, 0);
+  btn.hidden = !n;
+  btn.textContent = flushing ? 'Uploading…' : `${n} waiting to upload`;
+}
+
+// ---------- live updates from other phones ----------
+
+let cleanups = []; // run when the page changes
+const onLeave = fn => cleanups.push(fn);
+
+function subscribe(changes, onChange) {
+  const ch = sb.channel(`live-${Date.now()}-${Math.random()}`);
+  for (const c of changes) ch.on('postgres_changes', { schema: 'public', ...c }, onChange);
+  ch.subscribe();
+  onLeave(() => sb.removeChannel(ch));
+}
+
 // ---------- celebrations ----------
 
 const CONFETTI_COLORS = ['#e3c9a5', '#b9644a', '#7f9b79', '#e8a23a', '#f1ebe2'];
@@ -230,10 +351,12 @@ const routes = [
   [/^w\/([\w-]+)\/(new|edit)\/([\w-]+)$/, logView],
 ];
 
-async function router() {
+// `refresh`: redraw the same page with fresh data (a live update), keeping the scroll position
+async function router(refresh) {
   const id = ++routeId;
   const leaving = leaveHook;
   leaveHook = null;
+  cleanups.splice(0).forEach(fn => fn());
   if (leaving) {
     app.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
     await leaving();
@@ -243,14 +366,15 @@ async function router() {
   // Views call mount() once their data is loaded; a stale view (user navigated away meanwhile) is dropped
   const mount = html => {
     if (id !== routeId) throw STALE;
+    const y = window.scrollY;
     app.innerHTML = `<div class="view">${html}</div>`;
-    window.scrollTo(0, 0);
+    window.scrollTo(0, refresh === true ? y : 0);
     return app.firstElementChild;
   };
   for (const [re, view] of routes) {
     const m = path.match(re);
     if (!m) continue;
-    app.innerHTML = '<p class="muted center">Loading…</p>';
+    if (refresh !== true) app.innerHTML = '<p class="muted center">Loading…</p>';
     try {
       await view(mount, ...m.slice(1));
     } catch (e) {
@@ -626,7 +750,10 @@ async function exercisesView(mount) {
   })));
 }
 
+let openCards = new Set(), openCardsFor = null; // exercises expanded on the workout page, kept across live refreshes
+
 async function workoutView(mount, wid) {
+  if (openCardsFor !== wid) { openCardsFor = wid; openCards = new Set(); }
   const w = check(await sb.from('workouts')
     .select('id, started_at, finished_at, workout_exercises(id, created_at, exercises(name, photo_path), entries(absent, sets, members(name, created_at)))')
     .eq('id', wid)
@@ -673,7 +800,7 @@ async function workoutView(mount, wid) {
     ${allSets.length ? stats : ''}
     <div class="panel">
     ${wes.map(we => `
-      <div class="card ex-summary">
+      <div class="card ex-summary ${openCards.has(we.id) ? 'open' : ''}">
         <button class="ex-summary-head" data-expand>
           ${exImg(we.exercises.photo_path)}
           <span class="grow col">
@@ -683,7 +810,7 @@ async function workoutView(mount, wid) {
           <span class="check ${isDone(we) ? 'done' : ''}"></span>
           <span class="chev">▾</span>
         </button>
-        <div class="ex-details" hidden>
+        <div class="ex-details" data-we="${we.id}" ${openCards.has(we.id) ? '' : 'hidden'}>
           ${memberRows(we)}
           <a class="btn small" href="#/w/${wid}/edit/${we.id}" style="margin-top:12px">Open exercise</a>
         </div>
@@ -699,7 +826,20 @@ async function workoutView(mount, wid) {
     const details = head.nextElementSibling;
     details.hidden = !details.hidden;
     head.closest('.ex-summary').classList.toggle('open', !details.hidden);
+    if (details.hidden) openCards.delete(details.dataset.we); else openCards.add(details.dataset.we);
   }));
+
+  // Sets logged on another phone show up here as they're saved
+  let refreshTimer = null;
+  const refresh = () => {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => router(true), 500);
+  };
+  onLeave(() => clearTimeout(refreshTimer));
+  subscribe([
+    { event: 'INSERT', table: 'workout_exercises', filter: `workout_id=eq.${wid}` },
+    ...(wes.length ? [{ event: '*', table: 'entries', filter: `workout_exercise_id=in.(${wes.map(we => we.id).join(',')})` }] : []),
+  ], refresh);
 
   function workoutSummary() {
     return `
@@ -831,6 +971,15 @@ async function logView(mount, wid, mode, id) {
     weCreated = we.created_at;
     existing = we.entries;
   } else {
+    // Already in this workout (e.g. added on another phone): open that one instead of adding it twice
+    const found = check(await sb.from('workout_exercises').select('id').eq('workout_id', wid).eq('exercise_id', id).order('created_at').limit(1))[0];
+    if (found) {
+      const newKey = `draft2:${wid}:new-${id}`, editKey = `draft2:${wid}:${found.id}`;
+      if (draft.load(newKey) && !draft.load(editKey)) draft.save(editKey, draft.load(newKey));
+      draft.clear(newKey);
+      location.replace(`#/w/${wid}/edit/${found.id}`);
+      return;
+    }
     exercise = check(await sb.from('exercises').select('id, name, photo_path').eq('id', id).single());
   }
 
@@ -860,17 +1009,40 @@ async function logView(mount, wid, mode, id) {
   for (const l of last.values()) counts[l.sets.length] = (counts[l.sets.length] || 0) + 1;
   const groupSets = +Object.keys(counts).sort((a, b) => counts[b] - counts[a] || b - a)[0] || DEFAULT_SETS;
 
+  // Only members changed on this phone are saved, so two phones logging different people never overwrite each other.
+  // savedSig: each member's row as the database has it (or as this phone last handed it to the outbox).
+  const rowOf = s => ({ absent: s.absent, sets: s.absent ? [] : s.sets.filter(x => x.done)
+    .map(x => ({ reps: num(x.reps), weight: num(x.weight) })).filter(x => x.reps != null) });
+  const sig = r => JSON.stringify([!!r.absent, r.sets.map(x => [x.reps ?? null, x.weight ?? null])]);
+  const NO_ROW = sig({ absent: false, sets: [] });
+  const savedSig = new Map();
+  const sent = new Map(); // member -> rows this phone saved, so their echo from the database is ignored
+  const inferred = new Set(); // "not here" carried over from the last exercise, not chosen on this exercise
+  // Puts a row from the database into a member's state, keeping sets that are planned but not done yet
+  function takeRow(s, row) {
+    s.absent = row.absent;
+    if (row.absent) return;
+    const done = row.sets.map(x => toInput(x, true));
+    s.sets = [...done, ...s.sets.slice(done.length).map(x => ({ ...x, done: false }))];
+  }
+
   for (const m of members) {
+    const ex = existingBy.get(m.id);
+    const dbSig = ex ? sig(ex) : NO_ROW;
+    savedSig.set(m.id, dbSig);
     if (state[m.id]) {
       for (const set of state[m.id].sets) set.done ??= set.reps !== ''; // drafts from before sets had a done flag
+      // Changed on another phone since this draft, and nothing changed here: take theirs
+      const base = saved.base?.[m.id];
+      if (ex && base != null && sig(rowOf(state[m.id])) === base && dbSig !== base) takeRow(state[m.id], ex);
       continue;
     }
-    const ex = existingBy.get(m.id);
     const prev = last.get(m.id)?.sets;
     state[m.id] = ex && (ex.absent || ex.sets.length)
       ? { absent: ex.absent, sets: ex.sets.map(x => toInput(x, true)) }
       // Start from what they did last time; they just confirm or adjust each set
       : { absent: wasAbsent.get(m.id) === true, sets: prev ? prev.map(x => toInput(x, false)) : Array.from({ length: groupSets }, () => copySet()) };
+    if (!ex && state[m.id].absent) inferred.add(m.id);
   }
   // Guided flow: members take turns, each doing their next set. The order is shuffled once per workout
   // (on this phone) and kept for every exercise after that.
@@ -883,52 +1055,105 @@ async function logView(mount, wid, mode, id) {
   let cursor = order ? saved.cursor || null : null; // { r: set index, i: index in order } while guided
   let resume = saved.resume || null; // { r, mid }: where the guided flow was last, so Continue picks up there
   let showList = null; // null: closed while there are sets to do, open once everything is done
+  const saveDraft = () => draft.save(draftKey, { members: state, order, cursor, resume, base: Object.fromEntries(savedSig) });
   const persist = () => {
-    draft.save(draftKey, { members: state, order, cursor, resume });
+    saveDraft();
     if (order) draft.save(orderKey, order);
     scheduleSave();
   };
 
-  // ----- autosave: every change goes to the database shortly after it's made -----
+  // ----- autosave: changes go to the outbox shortly after they're made, and from there to the database -----
 
-  let saveTimer = null, dirty = false, saving = Promise.resolve();
+  let saveTimer = null;
   function scheduleSave() {
-    dirty = true;
-    setStatus('Saving…');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 800);
+    refreshStatus();
+  }
+  // Hands the members that changed here to the outbox (safe on the phone from then on)
+  function queueChanges() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    const rows = {};
+    for (const m of members) {
+      const row = rowOf(state[m.id]), s = sig(row);
+      if (s === savedSig.get(m.id)) continue;
+      rows[m.id] = { ...row, soft: inferred.has(m.id) };
+      savedSig.set(m.id, s);
+      if (!sent.has(m.id)) sent.set(m.id, new Set());
+      sent.get(m.id).add(s);
+    }
+    if (Object.keys(rows).length) queueSave(wid, exercise.id, weId, rows);
+    saveDraft();
   }
   function saveNow() {
-    clearTimeout(saveTimer);
-    if (!dirty) return saving;
-    dirty = false;
-    saving = saving.then(writeToDb).catch(err => {
-      dirty = true;
-      console.error(err);
-      setStatus('Not saved, tap to retry', true);
-    });
-    return saving;
+    queueChanges();
+    return flushSaves();
   }
-  async function writeToDb() {
-    if (!await requireAuth()) { dirty = true; setStatus('Not saved, tap to unlock', true); return; }
-    if (!weId) {
-      weId = check(await sb.from('workout_exercises').insert({ workout_id: wid, exercise_id: exercise.id }).select('id').single()).id;
-      // From now on this is an existing exercise in the workout
-      history.replaceState(null, '', `#/w/${wid}/edit/${weId}`);
-      draft.clear(draftKey);
-      draftKey = `draft2:${wid}:${weId}`;
-      draft.save(draftKey, { members: state, order, cursor, resume });
-    }
-    const rows = members.map(m => {
-      const s = state[m.id];
-      const sets = s.absent ? [] : s.sets
-        .filter(x => x.done)
-        .map(x => ({ reps: num(x.reps), weight: num(x.weight) }))
-        .filter(x => x.reps != null);
-      return { workout_exercise_id: weId, member_id: m.id, absent: s.absent, sets };
-    });
-    check(await sb.from('entries').upsert(rows, { onConflict: 'workout_exercise_id,member_id' }));
-    if (!dirty) setStatus('Saved ✓');
+
+  // Once the exercise is in the database (added by this phone's first save, or by another phone): from now on it's
+  // an existing exercise of the workout
+  function adopt(id) {
+    if (weId) return;
+    weId = id;
+    history.replaceState(null, '', `#/w/${wid}/edit/${weId}`);
+    draft.clear(draftKey);
+    draftKey = `draft2:${wid}:${weId}`;
+    saveDraft();
+    listen();
+    sb.from('entries').select('member_id, absent, sets').eq('workout_exercise_id', weId)
+      .then(({ data }) => data?.forEach(applyRemote));
+  }
+  const onWeId = e => { if (e.detail.wid === wid && e.detail.exerciseId === exercise.id) adopt(e.detail.weId); };
+  window.addEventListener('gb:weid', onWeId);
+  onLeave(() => window.removeEventListener('gb:weid', onWeId));
+
+  const waiting = () => !!outboxItem(wid, exercise.id);
+  let statusShown = false;
+  function refreshStatus() {
+    if (saveTimer) statusShown = true;
+    if (!statusShown) return;
+    if (saveTimer || (waiting() && flushing)) setStatus('Saving…');
+    else if (waiting()) setStatus('Saved on this phone · uploads when there’s signal', 'wait');
+    else setStatus('Saved ✓');
+  }
+  window.addEventListener('gb:outbox', refreshStatus);
+  onLeave(() => window.removeEventListener('gb:outbox', refreshStatus));
+
+  // ----- live: sets saved on another phone -----
+
+  function listen() {
+    subscribe([{ event: '*', table: 'entries', filter: `workout_exercise_id=eq.${weId}` }],
+      ({ new: row }) => row?.member_id && applyRemote(row));
+  }
+  // Reps or kg typed in the step on screen and not confirmed yet
+  function stepEdited() {
+    const reps = body.querySelector('[data-step] [data-f="reps"]'), weight = body.querySelector('[data-step] [data-f="weight"]');
+    const set = state[order[cursor.i]].sets[cursor.r];
+    return !!reps && (reps.value.trim() !== set.reps || (!!set.weight && weight.value.trim() !== set.weight));
+  }
+  function applyRemote(row) {
+    const mid = row.member_id, s = state[mid];
+    if (!s) return;
+    const remote = sig(row);
+    if (remote === savedSig.get(mid) || sent.get(mid)?.has(remote)) return; // nothing new, or this phone's own save
+    // Changed here and not uploaded yet: this phone's version wins
+    if (sig(rowOf(s)) !== savedSig.get(mid) || pendingRows(outboxItem(wid, exercise.id) || {})[mid]) return;
+    const onScreen = cursor && order[cursor.i] === mid;
+    if (onScreen && stepEdited()) return;
+    takeRow(s, row);
+    savedSig.set(mid, remote);
+    sent.delete(mid);
+    inferred.delete(mid);
+    saveDraft();
+    if (cursor && !onScreen) return; // the step on screen is someone else's
+    // Redraw, keeping the keyboard where it was
+    const f = document.activeElement;
+    const sel = f?.matches?.('.set-row input')
+      ? (f.dataset.m ? `[data-m="${f.dataset.m}"][data-i="${f.dataset.i}"][data-f="${f.dataset.f}"]` : `[data-step] [data-f="${f.dataset.f}"]`)
+      : null;
+    render();
+    if (sel) body.querySelector(sel)?.focus();
   }
 
   const eligible = (r, i) => { const s = state[order[i]]; return !!s && !s.absent && r < s.sets.length; };
@@ -978,12 +1203,13 @@ async function logView(mount, wid, mode, id) {
   const bottom = v.querySelector('[data-bottom]');
   const statusEl = v.querySelector('[data-status]');
 
-  function setStatus(text, isError) {
+  function setStatus(text, wait) {
     statusEl.textContent = text;
-    statusEl.classList.toggle('error-text', !!isError);
+    statusEl.classList.toggle('wait', !!wait);
   }
-  statusEl.addEventListener('click', () => { if (dirty) saveNow(); });
-  leaveHook = saveNow; // the router waits for this before showing the next page
+  statusEl.addEventListener('click', () => saveNow());
+  // Leaving only has to get the changes into the outbox; uploading carries on in the background
+  leaveHook = () => { saveNow(); };
 
   // ----- photo -----
 
@@ -1276,6 +1502,7 @@ async function logView(mount, wid, mode, id) {
     } else if (d.absent) {
       const s = state[d.absent];
       s.absent = !s.absent;
+      inferred.delete(d.absent); // chosen here now, so it's saved like any other change
       if (!s.absent && !s.sets.length) s.sets.push(copySet(last.get(d.absent)?.sets[0]));
       // Latecomers go to the back of the queue
       if (!s.absent && order) order = [...order.filter(mid => mid !== d.absent), d.absent];
@@ -1306,8 +1533,8 @@ async function logView(mount, wid, mode, id) {
 
   bottom.addEventListener('click', act(async e => {
     if (!e.target.closest('[data-done]')) return;
-    await saveNow();
-    if (dirty) return; // save failed; the status line says so
+    saveNow(); // safe in the outbox even without signal
+    leaveHook = null;
     draft.clear(draftKey);
     await showSheet(exerciseSummary());
     go(`#/w/${wid}`);
@@ -1316,13 +1543,15 @@ async function logView(mount, wid, mode, id) {
   const removeExercise = act(async () => {
     if (!confirm(`Remove ${exercise.name} from this workout?`) || !await requireAuth()) return;
     clearTimeout(saveTimer);
-    dirty = false;
-    await saving;
+    leaveHook = null;
+    dropSaves(wid, exercise.id);
+    await flushing?.catch(() => {});
     check(await sb.from('workout_exercises').delete().eq('id', weId));
     draft.clear(draftKey);
     go(`#/w/${wid}`);
   });
 
+  if (weId) listen();
   render();
 }
 
@@ -1337,7 +1566,9 @@ document.addEventListener('gesturestart', e => e.preventDefault());
     app.innerHTML = '<div class="notice">Set your Supabase URL, key and group email in <b>config.js</b> (see README.md).</div>';
     return;
   }
-  sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  // On bad signal a request can hang for minutes; give up after 20s so the outbox can try again
+  const timedFetch = (url, opts = {}) => fetch(url, opts.signal || !AbortSignal.timeout ? opts : { ...opts, signal: AbortSignal.timeout(20000) });
+  sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { global: { fetch: timedFetch } });
   session = (await sb.auth.getSession()).data.session;
   sb.auth.onAuthStateChange((_event, s) => { session = s; renderLock(); });
   renderLock();
@@ -1352,4 +1583,11 @@ document.addEventListener('gesturestart', e => e.preventDefault());
   if (!session) await requireAuth(true);
   window.addEventListener('hashchange', router);
   router();
+
+  // Anything saved without signal goes up as soon as possible
+  renderSync();
+  $('#sync').addEventListener('click', () => flushSaves());
+  window.addEventListener('online', () => flushSaves());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) flushSaves(); });
+  flushSaves();
 })();

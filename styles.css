@@ -50,6 +50,9 @@ header {
   backdrop-filter: blur(10px);
 }
 #lock { margin-left: auto; border-radius: 999px; border-color: #343130; }
+/* Sets saved on the phone but not uploaded yet (no signal) */
+#sync { margin-left: auto; border-radius: 999px; border-color: rgba(238, 211, 168, 0.45); color: var(--cream); }
+#sync:not([hidden]) + #lock { margin-left: 8px; }
 
 main { max-width: 640px; margin: 0 auto; padding: 8px 16px 130px; }
 
@@ -269,6 +272,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
   color: var(--muted);
   text-align: left;
 }
+.save-status.wait { color: var(--cream); }
 
 .photo-block { position: relative; margin-bottom: 16px; }
 .ex-photo { display: block; width: 100%; max-height: 280px; object-fit: cover; border-radius: 18px; background: var(--card); }
