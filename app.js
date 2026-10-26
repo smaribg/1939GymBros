@@ -1343,6 +1343,15 @@ async function logView(mount, wid, mode, id) {
 
   // ----- guided mode: one member and one set at a time -----
 
+  // The weight of the nearest member before `i` in the order who has done set `r` with a weight
+  function weightBefore(r, i) {
+    for (let k = 1; k < order.length; k++) {
+      const set = state[order[(i - k + order.length) % order.length]]?.sets[r];
+      if (set?.done && set.weight) return set.weight;
+    }
+    return '';
+  }
+
   // The current member's whole set table; the current set is editable, tap another set to jump to it
   function renderStep() {
     const { r, i } = cursor;
@@ -1355,8 +1364,9 @@ async function logView(mount, wid, mode, id) {
     const row = (x, j) => {
       const cells = `<span class="set-no">${j + 1}</span><span class="prev">${ls[j] ? esc(fmtKgReps(ls[j])) : '—'}</span>`;
       if (j === r) {
-        // Weight usually stays the same, so fall back to the previous set's
-        const weight = x.weight || s.sets[j - 1]?.weight || '';
+        // Weight usually stays the same, so fall back to the previous set's; someone doing this exercise for the
+        // first time starts from the weight of whoever went before them in this round
+        const weight = x.weight || s.sets[j - 1]?.weight || (!last.has(m.id) && weightBefore(r, i)) || '';
         return `
           <div class="set-row current ${x.done ? 'done' : ''}" data-step>
             ${cells}
