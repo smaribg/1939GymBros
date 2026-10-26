@@ -31,7 +31,11 @@
     .pad-head .value { font-size: 30px; font-weight: 700; line-height: 1; }
     .pad-head .value small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 3px; }
     .pad-head .kbd { margin-left: auto; display: inline-flex; flex-direction: row; gap: 6px; }
-    .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px; }
+    .chips { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); gap: 6px; margin-bottom: 6px; }
+    /* over everything: centred on the tapped box */
+    .center-pad { position: fixed; z-index: 21; width: min(340px, calc(100vw - 24px)); animation: pop 0.14s ease-out; }
+    .center-pad .chip { min-height: 56px; font-size: 18px; }
+    @keyframes pop { from { transform: scale(0.94); opacity: 0; } }
     .chip {
       min-height: 50px; border-radius: 12px; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
       background: var(--kg-bg); border: 1px solid var(--kg-border); color: var(--text);
@@ -66,8 +70,9 @@
     <h1 style="font-size:30px">Weight buttons</h1>
     <p class="sub">Preview only, nothing is saved. Tap the kg or reps box of the orange set.</p>
     <div class="seg variants" data-variants>
-      <button data-v="pop" class="on">Pop-up</button>
-      <button data-v="sheet">From the bottom</button>
+      <button data-v="center" class="on">Centred</button>
+      <button data-v="pop">Pop-up</button>
+      <button data-v="sheet">Bottom</button>
     </div>
     <p class="about" data-about></p>
     <div data-step></div>
@@ -79,12 +84,14 @@
     const TICK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
     const KBD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h1M10.5 10h1M14.5 10h1M6.5 14h11"/></svg>';
     const ABOUT = {
+      center: 'Opens on top of everything, centred where you tapped, with the rest darkened. Tap the dark part (or Done) to close.',
       pop: 'A small panel opens right under the set. Tap outside it (or Done) to close.',
       sheet: 'A panel slides up from the bottom, where your thumb is. Tap above it (or Done) to close.',
     };
-    const STEPS = { w: [-10, -6, -5, -1, 1, 5, 6, 10], r: [-2, -1, 1, 2] };
+    // plus on the top row, minus below, both from small to big
+    const STEPS = { w: [1, 5, 6, 10], r: [1, 2] };
     const prev = [{ w: 40, r: 10 }, { w: 42.5, r: 8 }, { w: 42.5, r: 8 }, { w: 45, r: 6 }];
-    let variant = 'pop';
+    let variant = 'center';
     let sets, cur, open = null, typing = false; // open: 'w' | 'r'
 
     function reset() {
@@ -126,9 +133,8 @@
           </div>
           ${typing
             ? `<input inputmode="${f === 'w' ? 'decimal' : 'numeric'}" data-type value="${fmt(v)}">`
-            : `${f === 'w'
-              ? `<div class="chips">${STEPS.w.slice(0, 4).map(chip).join('')}</div><div class="chips">${STEPS.w.slice(4).map(chip).join('')}</div>`
-              : `<div class="chips">${STEPS.r.map(chip).join('')}</div>`}`}
+            : `<div class="chips" style="--cols:${STEPS[f].length}">${STEPS[f].map(chip).join('')}</div>
+               <div class="chips" style="--cols:${STEPS[f].length}">${STEPS[f].map(n => chip(-n)).join('')}</div>`}
           <button class="btn primary" data-close>Done</button>
         </div>`;
     }
@@ -158,6 +164,14 @@
         const sr = step.getBoundingClientRect(), rr = rowEl.getBoundingClientRect(), cr = cell.getBoundingClientRect();
         pad.style.top = `${rr.bottom - sr.top + 10}px`;
         pad.style.setProperty('--arrow', `${cr.left + cr.width / 2 - sr.left - 12}px`);
+      } else if (variant === 'center') {
+        // centred on the tapped box, but kept on screen
+        const cr = el.querySelector('.cell.open').getBoundingClientRect();
+        overlay.innerHTML = `<div class="scrim" data-close></div>${padHtml('center-pad')}`;
+        const pad = overlay.querySelector('[data-pad]'), pr = { width: pad.offsetWidth, height: pad.offsetHeight }; // (not scaled by the animation)
+        const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+        pad.style.left = `${clamp(cr.left + cr.width / 2 - pr.width / 2, 12, innerWidth - pr.width - 12)}px`;
+        pad.style.top = `${clamp(cr.top + cr.height / 2 - pr.height / 2, 12, innerHeight - pr.height - 12)}px`;
       } else {
         overlay.innerHTML = `<div class="scrim" data-close></div>${padHtml('sheet-pad')}`;
       }
