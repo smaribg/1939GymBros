@@ -1,5 +1,5 @@
 // What a workout's total weight equals in WW2 hardware. Add or remove items freely: [name, kg, icon].
-// Tanks and trucks are combat-ready weights, planes are empty, all approximate. Icons are at the bottom.
+// Tanks and trucks are combat-ready weights, planes are empty, ships are their displacement, all approximate. Icons are at the bottom.
 const WW2_ITEMS = [
   // tanks and armour
   ['Tiger II', 69800, 'tank'], ['Tiger I', 57000, 'tank'], ['KV-1', 45000, 'tank'], ['Panther', 44800, 'tank'],
@@ -23,17 +23,78 @@ const WW2_ITEMS = [
   ['M2 Browning', 38, 'mg'], ['full jerrycan', 20, 'jerrycan'], ['PIAT', 15, 'launcher'], ['MG 42', 11.6, 'mg'],
   ['Bazooka', 6.8, 'launcher'], ['Thompson', 4.9, 'smg'], ['M1 Garand', 4.3, 'rifle'], ['Kar98k', 4.1, 'rifle'],
   ['PPSh-41', 3.6, 'smg'], ['M1 helmet', 1.3, 'helmet'], ['Luger', 0.9, 'pistol'],
+  // more, by icon
+  ['KV-2', 52000, 'tank'], ['IS-2', 46000, 'tank'], ['T-28', 28000, 'tank'], ['T-26', 9600, 'tank'],
+  ['BT-7', 13900, 'tank'], ['T-60', 5800, 'tank'], ['T-70', 9200, 'tank'], ['Matilda II', 26900, 'tank'],
+  ['Valentine', 16500, 'tank'], ['Crusader', 19700, 'tank'], ['Comet', 33200, 'tank'],
+  ['Sherman Firefly', 34750, 'tank'], ['M3 Lee', 27200, 'tank'], ['Pershing', 41900, 'tank'],
+  ['M10 tank destroyer', 29600, 'tank'], ['M18 Hellcat', 17700, 'tank'], ['Ha-Go', 7400, 'tank'],
+  ['Chi-Ha', 15000, 'tank'], ['Renault R35', 10600, 'tank'], ['Char B1', 28000, 'tank'], ['Somua S35', 19500, 'tank'],
+  ['Renault FT', 6500, 'tank'], ['7TP', 9900, 'tank'], ['Luchs', 11800, 'tank'], ['Maus', 188000, 'tank'],
+  ['Jagdtiger', 71700, 'stug'], ['Sturmtiger', 65000, 'stug'], ['Elefant', 65000, 'stug'],
+  ['Jagdpanther', 45500, 'stug'], ['SU-152', 45500, 'stug'], ['SU-100', 31600, 'stug'], ['SU-85', 29600, 'stug'],
+  ['Brummbär', 28200, 'stug'], ['Nashorn', 24000, 'stug'], ['Hummel', 24000, 'stug'], ['M7 Priest', 23000, 'stug'],
+  ['Hetzer', 15750, 'stug'], ['Wespe', 11000, 'stug'], ['Marder III', 10500, 'stug'], ['L3 tankette', 3200, 'stug'],
+  ['Bren carrier', 3750, 'stug'],
+  ['M3 half-track', 9300, 'halftrack'], ['LVT Buffalo', 12000, 'halftrack'],
+  ['GMC truck', 5100, 'truck'], ['DUKW', 6200, 'truck'], ['ZiS-5 truck', 3100, 'truck'],
+  ['Opel Blitz', 2500, 'truck'],
+  ['M8 Greyhound', 7800, 'jeep'], ['Sd.Kfz. 222 armoured car', 4800, 'jeep'], ['Dodge WC-51', 2400, 'jeep'],
+  ['Schwimmwagen', 910, 'jeep'],
+  ['Me 323 Gigant', 27300, 'bomber'], ['B-29 Superfortress', 33800, 'bomber'], ['Short Stirling', 21300, 'bomber'],
+  ['Halifax bomber', 17700, 'bomber'], ['B-24 Liberator', 16550, 'bomber'],
+  ['Ju 88', 9800, 'twin'], ['He 111', 8680, 'twin'], ['Do 17', 5200, 'twin'], ['Bf 110', 4500, 'twin'],
+  ['Ju 52', 5720, 'twin'], ['Me 262', 3800, 'twin'], ['B-26 Marauder', 10900, 'twin'],
+  ['B-25 Mitchell', 8850, 'twin'], ['PBY Catalina', 9480, 'twin'], ['P-38 Lightning', 5800, 'twin'],
+  ['Beaufighter', 7070, 'twin'], ['Wellington bomber', 8400, 'twin'], ['Pe-2', 5870, 'twin'],
+  ['Betty bomber', 6740, 'twin'],
+  ['Me 163 Komet', 1900, 'fighter'], ['Fieseler Storch', 860, 'fighter'], ['P-40 Warhawk', 2750, 'fighter'],
+  ['P-39 Airacobra', 2960, 'fighter'], ['F4F Wildcat', 2610, 'fighter'], ['F6F Hellcat', 4190, 'fighter'],
+  ['F4U Corsair', 4170, 'fighter'], ['SBD Dauntless', 2900, 'fighter'], ['TBF Avenger', 4780, 'fighter'],
+  ['Typhoon', 4010, 'fighter'], ['Tempest', 4190, 'fighter'], ['Swordfish', 2130, 'fighter'],
+  ['Lysander', 1980, 'fighter'], ['Gladiator', 1560, 'fighter'], ['Tiger Moth', 506, 'fighter'],
+  ['LaGG-3', 2205, 'fighter'], ['La-5', 2600, 'fighter'], ['MiG-3', 2700, 'fighter'], ['Po-2', 770, 'fighter'],
+  ['I-16', 1490, 'fighter'], ['Ki-43 Oscar', 1910, 'fighter'], ['Ki-84 Frank', 2660, 'fighter'],
+  ['Val dive bomber', 2410, 'fighter'], ['Kate torpedo plane', 2280, 'fighter'], ['Macchi C.202', 2490, 'fighter'],
+  ['Fiat CR.42', 1780, 'fighter'], ['Piper Cub', 340, 'fighter'], ['Waco glider', 1700, 'fighter'],
+  ['Horsa glider', 3800, 'fighter'],
+  ['Long Tom 155 mm gun', 13880, 'gun'], ['ML-20 howitzer', 7270, 'gun'], ['sFH 18 howitzer', 5510, 'gun'],
+  ['Pak 43 gun', 3650, 'gun'], ['17-pounder gun', 3050, 'gun'], ['M2 105 mm howitzer', 2260, 'gun'],
+  ['leFH 18 howitzer', 1985, 'gun'], ['ZiS-2 gun', 1250, 'gun'], ['ZiS-3 gun', 1116, 'gun'],
+  ['Pak 38 gun', 930, 'gun'], ['2-pounder gun', 814, 'gun'], ['75 mm pack howitzer', 650, 'gun'],
+  ['leIG 18 infantry gun', 400, 'gun'],
+  ['120 mm mortar', 280, 'mortar'], ['60 mm mortar', 19, 'mortar'], ['50 mm light mortar', 14, 'mortar'],
+  ['airborne folding bicycle', 10.5, 'bike'],
+  ['Maxim M1910', 64, 'mg'], ['Vickers gun', 23, 'mg'], ['Lewis gun', 13, 'mg'], ['MG 34', 12.1, 'mg'],
+  ['Bren gun', 10.3, 'mg'], ['DP-27', 9.1, 'mg'], ['BAR', 8.8, 'mg'],
+  ['Panzerschreck', 11, 'launcher'], ['Panzerfaust', 6.3, 'launcher'],
+  ['PTRD anti-tank rifle', 17.3, 'rifle'], ['Boys anti-tank rifle', 16, 'rifle'], ['Lee-Enfield', 4.1, 'rifle'],
+  ['Mosin-Nagant', 4, 'rifle'], ['M1 Carbine', 2.4, 'rifle'],
+  ['StG 44', 4.6, 'smg'], ['MP 40', 4, 'smg'], ['Sten gun', 3.2, 'smg'],
+  ['Webley revolver', 1.1, 'pistol'], ['Colt M1911', 1.1, 'pistol'], ['Tokarev pistol', 0.85, 'pistol'],
+  ['Stahlhelm', 1.2, 'helmet'],
+  ['SCR-300 radio', 14.5, 'box'], ['Enigma machine', 12, 'box'],
+  ['BR 52 locomotive', 84000, 'train'], ['Schwerer Gustav rail gun', 1350000, 'train'],
+  ['Type XXIII U-boat', 234000, 'sub'], ['Type VII U-boat', 769000, 'sub'], ['Gato submarine', 1525000, 'sub'],
+  ['Higgins boat', 8200, 'ship'], ['PT boat', 51000, 'ship'], ['S-boat', 100000, 'ship'],
+  ['Flower-class corvette', 940000, 'ship'], ['Fletcher destroyer', 2050000, 'ship'],
+  ['HMS Belfast', 10000000, 'ship'], ['Bismarck', 41700000, 'ship'], ['Yamato', 65000000, 'ship'],
 ].sort((a, b) => b[1] - a[1]);
+
+// A fixed random number per item for a seed
+const ww2Luck = seed => name => {
+  let h = 2166136261;
+  for (const c of seed + name) h = Math.imul(h ^ c.codePointAt(0), 16777619);
+  // spreads out similar strings
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+};
 
 // Breaks a weight down into at most four kinds of items, big to small, until less than 1% is left over.
 // `seed` (the workout's id) decides between items of similar weight, so a workout looks the same on every phone.
 function ww2Units(kg, seed) {
-  const luck = name => {
-    let h = 2166136261;
-    for (const c of seed + name) h = Math.imul(h ^ c.codePointAt(0), 16777619);
-    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b); // spreads out similar strings
-    return (h ^ (h >>> 16)) >>> 0;
-  };
+  const luck = ww2Luck(seed);
   const out = [];
   for (let rest = kg; rest > 0 && rest >= kg * 0.01 && out.length < 4;) {
     const fits = WW2_ITEMS.filter(([, w]) => w <= rest);
@@ -45,6 +106,14 @@ function ww2Units(kg, seed) {
     rest -= count * w;
   }
   return out;
+}
+
+// The single item closest to a weight (a little over or under). Among items within 1% `seed` decides.
+function ww2Closest(kg, seed) {
+  const luck = ww2Luck(seed);
+  const off = ([, w]) => Math.max(Math.abs(w - kg) / kg, 0.01);
+  const [name, w, icon] = WW2_ITEMS.reduce((a, b) => (off(b) - off(a) || luck(a[0]) - luck(b[0])) < 0 ? b : a);
+  return { name, kg: w, icon };
 }
 
 // Silhouettes (64 × 32, filled with the text color)
@@ -68,6 +137,12 @@ const WW2_ICONS = {
   smg: '<path d="M2 14l16-5h26v1h18v3H44v3h-5l-1 12h-6l1-12h-8l-3 9h-5l2-9-15 5z"/>',
   pistol: '<path d="M14 6h14l3-2 4 2h16v3H35v4h-5c0 4-3 5-6 4l-3 12h-9l5-17-4-3z"/>',
   helmet: '<path d="M12 22C12 9 21 3 32 3s20 6 20 19l6 3v2c-18-4-34-4-52 0v-2z"/>',
+  bike: '<path fill-rule="evenodd" d="M14 13a8.5 8.5 0 1 0 .01 0zM14 15.5a6 6 0 1 1-.01 0zM50 13a8.5 8.5 0 1 0 .01 0zM50 15.5a6 6 0 1 1-.01 0z"/><path d="M13 21l9-13h-4V6h9v2h-2l-1 2h18l-2-5h-5V3h7l9 18-2 1-5-10-11 11h-19zM25 12l7 9 8-9zM23 13l-6 8h12z" fill-rule="evenodd"/>',
+  truck: '<path d="M3 6h36v17H3zM41 10h8l5 6 7 2v5H41z"/>' + wheels(5.5, 13, 27, 52),
+  box: '<path fill-rule="evenodd" d="M16 8h32a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H16a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2zM22 13a4 4 0 1 0 .01 0zM34 13v3h11v-3zM34 19v3h11v-3zM19 25v2h26v-2zM45 2h2v6h-2z"/>',
+  train: '<path d="M3 5h15v18H3zM18 10h34a6 6 0 0 1 0 12H18zM44 3h6v7h-6zM28 7h6v4h-6zM55 22h6l3 4h-9z"/>' + wheels(4.5, 9, 21, 32, 43, 54),
+  sub: '<path d="M8 19h16l3-9h9l3 9h16c5 0 7 3 8 4-1 1-4 5-9 5H14C8 28 4 25 1 22zM30 3h2.5v8H30zM33 5h3v2h-3zM14 15h8v2h-3v3h-3v-3h-2z"/>',
+  ship: '<path d="M2 20h12v-5h8v-5h6V3h3v7h6v5h10l2 5h13l-6 9H8zM6 16h6v4H6zM2 16h6v1.5H2zM50 16h6v4h-6zM55 16h7v1.5h-7z"/>',
   jerrycan: '<path fill-rule="evenodd" d="M20 8l4-5h14v3h5l3 4v17a3 3 0 0 1-3 3H23a3 3 0 0 1-3-3zM26 5h9v2h-9zM25 14l6 5-6 5 2 2 6-5 6 5 2-2-6-5 6-5-2-2-6 5-6-5z"/>',
 };
 const ww2Icon = kind => `<svg class="ww2-icon" viewBox="0 0 64 32" fill="currentColor" aria-hidden="true">${WW2_ICONS[kind]}</svg>`;

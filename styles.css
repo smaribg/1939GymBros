@@ -590,9 +590,11 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .ww2-item.main { flex-basis: 100%; flex-direction: row; align-items: center; gap: 16px; padding: 16px; background: rgba(240, 98, 42, 0.12); }
 .ww2-item.main .ww2-icon { width: 112px; height: 56px; }
 .ww2-item.main b { font-size: 21px; }
-.past-ww2 { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--accent-text); font-size: 13px; }
-.past-ww2 > span { display: inline-flex; align-items: center; gap: 5px; }
-.past-ww2 .ww2-icon { width: 26px; height: 13px; }
+.ww2-line { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--accent-text); font-size: 13px; }
+.ww2-line > span { display: inline-flex; align-items: center; gap: 5px; }
+.ww2-line .ww2-icon { width: 26px; height: 13px; }
+.ex-ww2 { margin: 12px 2px; }
+.ex-ww2 > b { color: var(--text); }
 /* Stat cards: icon tile + big number; first one orange-tinted, last one green-tinted */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
 .stat {

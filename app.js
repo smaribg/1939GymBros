@@ -1,4 +1,4 @@
-/* global supabase, CONFIG, ww2Units, ww2Icon */
+/* global supabase, CONFIG, ww2Units, ww2Closest, ww2Icon */
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
@@ -30,11 +30,11 @@ const act = fn => async e => {
 const kgTotal = (sets, exercise) => sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0) * (exercise?.one_handed ? 2 : 1);
 const oneHandedTag = exercise => (exercise.one_handed ? '<span class="hand-tag">one-handed ×2</span>' : '');
 // A workout's total kg in WW2 hardware (see ww2.js)
-const ww2Html = (kg, seed) => {
+const ww2Html = (kg, seed, title = 'You lifted') => {
   const units = ww2Units(kg, seed);
   return units.length ? `
     <div class="ww2">
-      <span class="ww2-title">You lifted</span>
+      <span class="ww2-title">${title}</span>
       <div class="ww2-grid">
         ${units.map((u, i) => `
           <div class="ww2-item ${i ? '' : 'main'}">
@@ -43,6 +43,12 @@ const ww2Html = (kg, seed) => {
           </div>`).join('')}
       </div>
     </div>` : '';
+};
+// The same in one line: the single closest item
+const ww2Line = (kg, seed, cls = '', label = '') => {
+  if (!kg) return '';
+  const u = ww2Closest(kg, seed);
+  return `<span class="ww2-line ${cls}">${label}<span>${ww2Icon(u.icon)}≈ 1× ${esc(u.name)}</span></span>`;
 };
 // "60kg × 10", or "10 reps" without weight
 const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);
@@ -526,7 +532,7 @@ async function home(mount) {
               ${t.sets ? `<span class="past-stats">${t.sets} sets${t.kg ? ` · ${t.kg.toLocaleString('en-GB')} kg` : ''}</span>` : ''}
             </span>
             <span class="muted small">${esc(summary(w))}</span>
-            ${t.kg ? `<span class="past-ww2">${ww2Units(t.kg, w.id).map(u => `<span>${ww2Icon(u.icon)}${u.count}× ${esc(u.name)}</span>`).join('')}</span>` : ''}
+            ${ww2Line(t.kg, w.id)}
             ${people(w).length ? `<span class="bubbles">${people(w).map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</span>` : ''}
           </a>`;
         }).join('')}</div>`
@@ -719,6 +725,7 @@ async function memberView(mount, id) {
       { icon: 'plates', value: sets.length, label: 'sets' },
       { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'blue' },
     ])}
+    ${ww2Html(Math.round(kg), id, 'Lifted in total')}
     <h2>Exercises</h2>
     ${groups.map(cardHtml).join('') || '<p class="muted">Nothing logged yet.</p>'}
     <h2>Settings</h2>
@@ -880,7 +887,8 @@ async function workoutView(mount, wid) {
     .filter(e => !e.absent && e.sets.length).map(e => e.members.name);
 
   const allSets = wes.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
-  const kg = wes.reduce((sum, we) => sum + kgTotal(we.entries.flatMap(e => (e.absent ? [] : e.sets)), we.exercises), 0);
+  const exKg = we => kgTotal(we.entries.flatMap(e => (e.absent ? [] : e.sets)), we.exercises);
+  const kg = wes.reduce((sum, we) => sum + exKg(we), 0);
   // Everyone who logged a set, in the usual member order
   const people = new Set(wes.flatMap(we => we.entries.filter(e => !e.absent && e.sets.length))
     .map(e => e.members).sort(byCreated).map(m => m.name));
@@ -890,6 +898,7 @@ async function workoutView(mount, wid) {
     { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'blue' },
   ]);
 
+  const exWw2 = we => ww2Line(exKg(we), `${wid}:${we.exercises.id}`);
   const ww2 = ww2Html(Math.round(kg), wid);
 
   const v = mount(`
@@ -906,7 +915,7 @@ async function workoutView(mount, wid) {
           <span class="grow col">
             <span class="ex-title">${esc(we.exercises.name)}</span>
             ${oneHandedTag(we.exercises)}
-            ${participants(we).length ? '' : '<span class="muted small">No sets yet</span>'}
+            ${participants(we).length ? exWw2(we) : '<span class="muted small">No sets yet</span>'}
           </span>
           <span class="check ${isDone(we) ? 'done' : ''}"></span>
           <span class="chev">▾</span>
@@ -952,6 +961,7 @@ async function workoutView(mount, wid) {
         <div class="sheet-row">
           <b>${esc(we.exercises.name)}</b>
           <span class="muted small">${esc(participants(we).join(', ')) || 'No sets'}</span>
+          ${exWw2(we)}
         </div>`).join('')}`;
   }
 
@@ -1182,6 +1192,7 @@ async function logView(mount, wid, mode, id) {
       }
     }
     scheduleSave();
+    renderWw2();
   };
 
   // ----- autosave: changes go to the outbox shortly after they're made, and from there to the database -----
@@ -1281,6 +1292,7 @@ async function logView(mount, wid, mode, id) {
     sent.delete(mid);
     inferred.delete(mid);
     saveDraft();
+    renderWw2();
     if (cursor && !onScreen) { // the step on screen is someone else's; only who's next may have changed
       const label = body.querySelector('[data-g="next"] small');
       if (label) label.textContent = nextLabel(nextTodo(cursor));
@@ -1335,12 +1347,22 @@ async function logView(mount, wid, mode, id) {
     <button class="save-status" data-status></button>
     <div class="photo-block" data-photo></div>
     <div data-body></div>
+    <div data-ww2></div>
     <div class="sticky-bottom" data-bottom></div>
   `);
   const photoEl = v.querySelector('[data-photo]');
   const body = v.querySelector('[data-body]');
   const bottom = v.querySelector('[data-bottom]');
   const statusEl = v.querySelector('[data-status]');
+  const ww2El = v.querySelector('[data-ww2]');
+
+  // This exercise's total so far, everyone's confirmed sets together
+  const totalKg = () => kgTotal(members.flatMap(m => rowOf(state[m.id]).sets), exercise);
+  const ww2Seed = `${wid}:${exercise.id}`;
+  function renderWw2() {
+    const kg = totalKg();
+    ww2El.innerHTML = ww2Line(kg, ww2Seed, 'ex-ww2', `<b>${Math.round(kg).toLocaleString('en-GB')} kg</b>`);
+  }
 
   function setStatus(text, kind) {
     statusEl.textContent = text;
@@ -1368,6 +1390,7 @@ async function logView(mount, wid, mode, id) {
     if (!e.target.closest('[data-hand]') || !await requireAuth()) return;
     await toggleOneHanded(exercise);
     photoEl.querySelector('[data-hand]').setAttribute('aria-pressed', exercise.one_handed);
+    renderWw2();
   }));
   photoEl.addEventListener('click', e => { if (e.target.closest('.ex-photo')) showPhoto(exercise.photo_path); });
   photoEl.addEventListener('change', act(async e => {
@@ -1476,6 +1499,7 @@ async function logView(mount, wid, mode, id) {
     return `
       <div class="sheet-title">${esc(exercise.name)}</div>
       <p class="sub">Exercise complete 💪 · ${setTotal} set${setTotal === 1 ? '' : 's'}</p>
+      ${ww2Html(Math.round(totalKg()), ww2Seed)}
       ${rows || '<p class="muted">No sets were logged.</p>'}
       ${absent.length ? `<p class="muted small">Not here: ${esc(absent.join(', '))}</p>` : ''}`;
   }
@@ -1562,6 +1586,7 @@ async function logView(mount, wid, mode, id) {
 
   function render() {
     closePad();
+    renderWw2();
     if (choosing && !toPick().length) { // everyone left was done on another phone meanwhile
       choosing = false;
       return pickedNext(null);
