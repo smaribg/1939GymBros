@@ -1,4 +1,4 @@
-/* global supabase, CONFIG, ww2Units, ww2Closest, ww2Icon */
+/* global supabase, CONFIG, ww2Units, ww2Icon */
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
@@ -44,11 +44,12 @@ const ww2Html = (kg, seed, title = 'You lifted') => {
       </div>
     </div>` : '';
 };
-// The same in one line: the single closest item
+// The same in one line: only the biggest item
 const ww2Line = (kg, seed, cls = '', label = '') => {
   if (!kg) return '';
-  const u = ww2Closest(kg, seed);
-  return `<span class="ww2-line ${cls}">${label}<span>${ww2Icon(u.icon)}≈ 1× ${esc(u.name)}</span></span>`;
+  const u = ww2Units(Math.round(kg), seed)[0];
+  if (!u) return '';
+  return `<span class="ww2-line ${cls}">${label}<span>${ww2Icon(u.icon)}≈ ${u.count}× ${esc(u.name)}</span></span>`;
 };
 // "60kg × 10", or "10 reps" without weight
 const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);

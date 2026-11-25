@@ -99,21 +99,14 @@ function ww2Units(kg, seed) {
   for (let rest = kg; rest > 0 && rest >= kg * 0.01 && out.length < 4;) {
     const fits = WW2_ITEMS.filter(([, w]) => w <= rest);
     if (!fits.length) break;
-    const close = fits.filter(([, w]) => w >= rest / 2);
+    // First the heaviest that fits (or within 1% of it), then anything filling at least half of what's left
+    const close = fits.filter(([, w]) => w >= (out.length ? rest / 2 : fits[0][1] * 0.99));
     const [name, w, icon] = close.length ? close.reduce((a, b) => (luck(b[0]) > luck(a[0]) ? b : a)) : fits[0];
     const count = Math.floor(rest / w);
     out.push({ name, count, kg: w, icon });
     rest -= count * w;
   }
   return out;
-}
-
-// The single item closest to a weight (a little over or under). Among items within 1% `seed` decides.
-function ww2Closest(kg, seed) {
-  const luck = ww2Luck(seed);
-  const off = ([, w]) => Math.max(Math.abs(w - kg) / kg, 0.01);
-  const [name, w, icon] = WW2_ITEMS.reduce((a, b) => (off(b) - off(a) || luck(a[0]) - luck(b[0])) < 0 ? b : a);
-  return { name, kg: w, icon };
 }
 
 // Silhouettes (64 × 32, filled with the text color)
