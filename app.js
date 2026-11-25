@@ -899,7 +899,7 @@ async function workoutView(mount, wid) {
     { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'blue' },
   ]);
 
-  const exWw2 = we => ww2Line(exKg(we), `${wid}:${we.exercises.id}`);
+  const exWw2 = we => ww2Line(exKg(we), wid);
   const ww2 = ww2Html(Math.round(kg), wid);
 
   const v = mount(`
@@ -1359,10 +1359,9 @@ async function logView(mount, wid, mode, id) {
 
   // This exercise's total so far, everyone's confirmed sets together
   const totalKg = () => kgTotal(members.flatMap(m => rowOf(state[m.id]).sets), exercise);
-  const ww2Seed = `${wid}:${exercise.id}`;
   function renderWw2() {
     const kg = totalKg();
-    ww2El.innerHTML = ww2Line(kg, ww2Seed, 'ex-ww2', `<b>${Math.round(kg).toLocaleString('en-GB')} kg</b>`);
+    ww2El.innerHTML = ww2Line(kg, wid, 'ex-ww2', `<b>${Math.round(kg).toLocaleString('en-GB')} kg</b>`);
   }
 
   function setStatus(text, kind) {
@@ -1500,7 +1499,7 @@ async function logView(mount, wid, mode, id) {
     return `
       <div class="sheet-title">${esc(exercise.name)}</div>
       <p class="sub">Exercise complete 💪 · ${setTotal} set${setTotal === 1 ? '' : 's'}</p>
-      ${ww2Html(Math.round(totalKg()), ww2Seed)}
+      ${ww2Html(Math.round(totalKg()), wid)}
       ${rows || '<p class="muted">No sets were logged.</p>'}
       ${absent.length ? `<p class="muted small">Not here: ${esc(absent.join(', '))}</p>` : ''}`;
   }
