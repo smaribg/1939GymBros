@@ -1,4 +1,4 @@
-/* global supabase, CONFIG, ww2Units */
+/* global supabase, CONFIG, ww2Units, ww2Icon */
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
@@ -35,7 +35,13 @@ const ww2Html = (kg, seed) => {
   return units.length ? `
     <div class="ww2">
       <span class="ww2-title">You lifted</span>
-      ${units.map(u => `<div class="ww2-row"><b>${u.count}×</b><span class="grow">${esc(u.name)}</span><span class="muted small">${(u.count * u.kg).toLocaleString('en-GB')} kg</span></div>`).join('')}
+      <div class="ww2-grid">
+        ${units.map((u, i) => `
+          <div class="ww2-item ${i ? '' : 'main'}">
+            ${ww2Icon(u.icon)}
+            <span class="col"><b><em>${u.count}×</em> ${esc(u.name)}</b><span class="muted small">${(u.count * u.kg).toLocaleString('en-GB')} kg</span></span>
+          </div>`).join('')}
+      </div>
     </div>` : '';
 };
 // "60kg × 10", or "10 reps" without weight
@@ -520,7 +526,7 @@ async function home(mount) {
               ${t.sets ? `<span class="past-stats">${t.sets} sets${t.kg ? ` · ${t.kg.toLocaleString('en-GB')} kg` : ''}</span>` : ''}
             </span>
             <span class="muted small">${esc(summary(w))}</span>
-            ${t.kg ? `<span class="past-ww2">${esc(ww2Units(t.kg, w.id).map(u => `${u.count}× ${u.name}`).join(' + '))}</span>` : ''}
+            ${t.kg ? `<span class="past-ww2">${ww2Units(t.kg, w.id).map(u => `<span>${ww2Icon(u.icon)}${u.count}× ${esc(u.name)}</span>`).join('')}</span>` : ''}
             ${people(w).length ? `<span class="bubbles">${people(w).map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</span>` : ''}
           </a>`;
         }).join('')}</div>`

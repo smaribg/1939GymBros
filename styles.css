@@ -576,12 +576,23 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .sheet .sub { margin-bottom: 14px; }
 .sheet-row { display: flex; flex-direction: column; gap: 2px; padding: 12px 0; border-top: 1px solid var(--border); }
 /* Total weight in WW2 hardware */
-.ww2 { padding: 12px 16px; margin-bottom: 12px; border-radius: 18px; background: linear-gradient(160deg, #201e1d, #181717); border: 1px solid #2a2828; }
-.ww2-title { color: var(--accent-text); font-size: 13px; font-weight: 600; }
-.ww2-row { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; }
-.ww2-row b { min-width: 26px; color: var(--accent-text); }
-.ww2-row .muted { white-space: nowrap; }
-.past-ww2 { color: var(--accent-text); font-size: 13px; }
+.ww2 {
+  padding: 14px; margin-bottom: 12px; border-radius: 20px; border: 1px solid #40281b;
+  background: radial-gradient(320px 200px at 0 0, rgba(240, 98, 42, 0.16), transparent 100%), #171616;
+}
+.ww2-title { display: block; margin: 0 2px 10px; color: var(--accent-text); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.ww2-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.ww2-item { flex: 1 1 90px; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); }
+.ww2-item b { font-weight: 600; font-size: 15px; line-height: 1.2; overflow-wrap: anywhere; }
+.ww2-item em { color: var(--accent-text); font-style: normal; }
+.ww2-icon { flex: none; width: 56px; height: 28px; color: var(--accent); }
+/* The heaviest one gets its own row */
+.ww2-item.main { flex-basis: 100%; flex-direction: row; align-items: center; gap: 16px; padding: 16px; background: rgba(240, 98, 42, 0.12); }
+.ww2-item.main .ww2-icon { width: 112px; height: 56px; }
+.ww2-item.main b { font-size: 21px; }
+.past-ww2 { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--accent-text); font-size: 13px; }
+.past-ww2 > span { display: inline-flex; align-items: center; gap: 5px; }
+.past-ww2 .ww2-icon { width: 26px; height: 13px; }
 /* Stat cards: icon tile + big number; first one orange-tinted, last one green-tinted */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
 .stat {
