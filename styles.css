@@ -278,7 +278,7 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .save-status.stuck { color: var(--danger); font-weight: 600; }
 
 .photo-block { position: relative; margin-bottom: 16px; }
-.ex-photo { display: block; width: 100%; max-height: 280px; object-fit: cover; border-radius: 18px; background: var(--card); }
+.ex-photo { display: block; cursor: zoom-in; width: 100%; max-height: 280px; object-fit: cover; border-radius: 18px; background: var(--card); }
 .photo-block .on-photo { position: absolute; right: 10px; bottom: 10px; background: rgba(13, 14, 14, 0.75); backdrop-filter: blur(6px); }
 
 .photo-block .on-photo.left { right: auto; left: 10px; }
@@ -540,6 +540,17 @@ dialog h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spac
 }
 .all-done .btn { background: rgba(20, 32, 18, 0.15); border-color: rgba(20, 32, 18, 0.3); color: #142012; }
 
+/* Exercise photo, large */
+dialog.photo-view {
+  width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0;
+  padding: 12px max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  border: 0; border-radius: 0; background: rgba(0, 0, 0, 0.92);
+}
+dialog.photo-view[open] { display: flex; flex-direction: column; gap: 12px; }
+.photo-view img { flex: 1; min-height: 0; width: 100%; object-fit: contain; touch-action: pinch-zoom; }
+.photo-view .row { justify-content: center; }
+.photo-view .btn:focus { outline: none; } /* it gets focus when the photo opens */
+
 /* Summary sheet after completing an exercise or workout */
 /* Centered in the visible screen (dvh leaves out the phone browser's toolbars) */
 dialog.sheet {
@@ -554,7 +565,7 @@ dialog.sheet {
   overscroll-behavior: contain;
 }
 /* The page behind an open sheet doesn't scroll */
-html.no-scroll, html.no-scroll body { overflow: hidden; }
+html.no-scroll, html.no-scroll body, html:has(#photo[open]), html:has(#photo[open]) body { overflow: hidden; }
 dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 @keyframes sheet-in { from { opacity: 0; } to { opacity: 1; } } /* no transform: it would trap the confetti canvas */
 #sheet-confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; }

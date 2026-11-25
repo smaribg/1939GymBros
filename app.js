@@ -315,6 +315,17 @@ function showSheet(html) {
 
 const photoUrl = path => sb.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
 const DUMBBELL = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>';
+// Shows a photo large; with onChange there's also a button for replacing it
+function showPhoto(path, onChange) {
+  const dlg = $('#photo');
+  dlg.querySelector('img').src = photoUrl(path);
+  dlg.querySelector('[data-change]').hidden = !onChange;
+  dlg.onclick = e => {
+    dlg.close();
+    if (e.target.closest('[data-change]')) onChange();
+  };
+  dlg.showModal();
+}
 // Left-hand photo of an exercise row, or a dumbbell when there is no photo
 const exImg = path => path
   ? `<div class="ex-img" style="background-image:url('${esc(photoUrl(path))}')"></div>`
@@ -754,7 +765,7 @@ async function exercisesView(mount) {
     <div class="list">
       ${exercises.map(e => `
         <div class="list-item row">
-          <label class="photo-pick" aria-label="${e.photo_path ? 'Change' : 'Add'} photo">
+          <label class="photo-pick" aria-label="${e.photo_path ? 'Show' : 'Add'} photo">
             ${exImg(e.photo_path)}
             <span class="cam"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
             <input type="file" accept="image/*" hidden data-photo="${e.id}">
@@ -774,7 +785,17 @@ async function exercisesView(mount) {
     btn.setAttribute('aria-pressed', exercise.one_handed);
   }));
 
-  // Tap a thumbnail to take or choose a photo for that exercise
+  // Tap a thumbnail to see its photo large
+  v.querySelector('.list').addEventListener('click', e => {
+    const pick = e.target.closest('.photo-pick');
+    const input = pick?.querySelector('input');
+    if (!pick || e.target === input) return;
+    const exercise = exercises.find(x => x.id === input.dataset.photo);
+    if (!exercise.photo_path) return;
+    e.preventDefault();
+    showPhoto(exercise.photo_path, () => input.click());
+  });
+  // ...or, without one, to take or choose a photo for that exercise
   v.querySelector('.list').addEventListener('change', act(async e => {
     const input = e.target.closest('[data-photo]');
     const file = input?.files?.[0];
@@ -1329,6 +1350,7 @@ async function logView(mount, wid, mode, id) {
     await toggleOneHanded(exercise);
     photoEl.querySelector('[data-hand]').setAttribute('aria-pressed', exercise.one_handed);
   }));
+  photoEl.addEventListener('click', e => { if (e.target.closest('.ex-photo')) showPhoto(exercise.photo_path); });
   photoEl.addEventListener('change', act(async e => {
     const file = e.target.files?.[0];
     if (!file || !await requireAuth()) return;
@@ -1863,6 +1885,7 @@ document.addEventListener('gesturestart', e => e.preventDefault());
   // The whole site is behind the group password
   if (!session) await requireAuth(true);
   window.addEventListener('hashchange', router);
+  window.addEventListener('hashchange', () => $('#photo').close());
   router();
 
   // Anything saved without signal goes up as soon as possible
