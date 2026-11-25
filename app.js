@@ -1345,10 +1345,10 @@ async function logView(mount, wid, mode, id) {
   const v = mount(`
     <a class="back" href="#/w/${wid}">${CHEVRON}Workout</a>
     <h1>${esc(exercise.name)}</h1>
+    <div data-ww2></div>
     <button class="save-status" data-status></button>
     <div class="photo-block" data-photo></div>
     <div data-body></div>
-    <div data-ww2></div>
     <div class="sticky-bottom" data-bottom></div>
   `);
   const photoEl = v.querySelector('[data-photo]');

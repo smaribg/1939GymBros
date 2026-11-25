@@ -593,7 +593,7 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .ww2-line { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--accent-text); font-size: 13px; }
 .ww2-line > span { display: inline-flex; align-items: center; gap: 5px; }
 .ww2-line .ww2-icon { width: 26px; height: 13px; }
-.ex-ww2 { margin: 12px 2px; }
+.ex-ww2 { margin: 2px 0 4px; }
 .ex-ww2 > b { color: var(--text); }
 /* Stat cards: icon tile + big number; first one orange-tinted, last one green-tinted */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
