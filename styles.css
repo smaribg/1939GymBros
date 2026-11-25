@@ -575,6 +575,13 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .sheet-title { font-size: 28px; font-weight: 600; line-height: 1.15; }
 .sheet .sub { margin-bottom: 14px; }
 .sheet-row { display: flex; flex-direction: column; gap: 2px; padding: 12px 0; border-top: 1px solid var(--border); }
+/* Total weight in WW2 hardware */
+.ww2 { padding: 12px 16px; margin-bottom: 12px; border-radius: 18px; background: linear-gradient(160deg, #201e1d, #181717); border: 1px solid #2a2828; }
+.ww2-title { color: var(--accent-text); font-size: 13px; font-weight: 600; }
+.ww2-row { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; }
+.ww2-row b { min-width: 26px; color: var(--accent-text); }
+.ww2-row .muted { white-space: nowrap; }
+.past-ww2 { color: var(--accent-text); font-size: 13px; }
 /* Stat cards: icon tile + big number; first one orange-tinted, last one green-tinted */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
 .stat {

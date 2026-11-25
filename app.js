@@ -1,4 +1,4 @@
-/* global supabase, CONFIG */
+/* global supabase, CONFIG, ww2Units */
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
@@ -29,6 +29,15 @@ const act = fn => async e => {
 // Total kg of some sets. One-handed exercises are logged per hand, so they count double.
 const kgTotal = (sets, exercise) => sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0) * (exercise?.one_handed ? 2 : 1);
 const oneHandedTag = exercise => (exercise.one_handed ? '<span class="hand-tag">one-handed ×2</span>' : '');
+// A workout's total kg in WW2 hardware (see ww2.js)
+const ww2Html = (kg, seed) => {
+  const units = ww2Units(kg, seed);
+  return units.length ? `
+    <div class="ww2">
+      <span class="ww2-title">You lifted</span>
+      ${units.map(u => `<div class="ww2-row"><b>${u.count}×</b><span class="grow">${esc(u.name)}</span><span class="muted small">${(u.count * u.kg).toLocaleString('en-GB')} kg</span></div>`).join('')}
+    </div>` : '';
+};
 // "60kg × 10", or "10 reps" without weight
 const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);
 
@@ -511,6 +520,7 @@ async function home(mount) {
               ${t.sets ? `<span class="past-stats">${t.sets} sets${t.kg ? ` · ${t.kg.toLocaleString('en-GB')} kg` : ''}</span>` : ''}
             </span>
             <span class="muted small">${esc(summary(w))}</span>
+            ${t.kg ? `<span class="past-ww2">${esc(ww2Units(t.kg, w.id).map(u => `${u.count}× ${u.name}`).join(' + '))}</span>` : ''}
             ${people(w).length ? `<span class="bubbles">${people(w).map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</span>` : ''}
           </a>`;
         }).join('')}</div>`
@@ -874,12 +884,14 @@ async function workoutView(mount, wid) {
     { icon: 'trophy', value: Math.round(kg).toLocaleString('en-GB'), label: 'kg lifted', tone: 'blue' },
   ]);
 
+  const ww2 = ww2Html(Math.round(kg), wid);
+
   const v = mount(`
     <a class="back" href="#/">${CHEVRON}Home</a>
     <h1>${w.finished_at ? 'Workout' : 'Today’s Workout'}</h1>
     <p class="sub">${fmtDate(w.started_at)}</p>
     ${people.size ? `<div class="bubbles workout-people">${[...people].map(n => `<span class="bubble">${esc(n)}</span>`).join('')}</div>` : ''}
-    ${allSets.length ? stats : ''}
+    ${allSets.length ? stats + ww2 : ''}
     <div class="panel">
     ${wes.map(we => `
       <div class="card ex-summary ${openCards.has(we.id) ? 'open' : ''}">
@@ -929,6 +941,7 @@ async function workoutView(mount, wid) {
       <div class="sheet-title">Workout finished 🎉</div>
       <p class="sub">${fmtDate(w.started_at)} · ${people.size} member${people.size === 1 ? '' : 's'}</p>
       ${stats}
+      ${ww2}
       ${wes.map(we => `
         <div class="sheet-row">
           <b>${esc(we.exercises.name)}</b>
