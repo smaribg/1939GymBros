@@ -110,7 +110,8 @@ h3 { margin: 0; font-size: 18px; font-weight: 600; }
 .btn.block { width: 100%; margin-bottom: 12px; }
 /* Home screen's Members / Exercises: stand out from the dark background */
 .btn.tile { flex-direction: row; gap: 8px; min-height: 56px; background: #1c1c1c; border-color: #343130; color: var(--text); font-size: 16px; font-weight: 600; border-radius: 16px; }
-.btn.tile svg { width: 20px; height: 20px; color: var(--muted); }
+.btn.tile .ww2-icon { width: 40px; height: 20px; color: var(--accent); }
+.btn.tile svg:not(.ww2-icon) { width: 20px; height: 20px; color: var(--muted); }
 .btn.tile:active { filter: brightness(1.15); }
 .btn:disabled { opacity: 0.45; }
 
@@ -595,6 +596,12 @@ dialog.sheet[open] { animation: sheet-in 0.25s ease-out; }
 .ww2-line .ww2-icon { width: 26px; height: 13px; }
 .ex-ww2 { margin: 2px 0 4px; }
 .ex-ww2 > b { color: var(--text); }
+/* Arsenal: everything lifted so far */
+.arsenal-row { display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-top: 1px solid var(--border); }
+.arsenal-row:first-child { border-top: 0; }
+.arsenal-row > b { min-width: 40px; color: var(--accent-text); font-size: 18px; text-align: right; }
+.arsenal-row .grow { line-height: 1.2; }
+.arsenal-row .muted { white-space: nowrap; }
 /* Stat cards: icon tile + big number; first one orange-tinted, last one green-tinted */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
 .stat {

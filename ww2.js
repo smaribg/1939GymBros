@@ -117,6 +117,16 @@ function ww2Units(kg, seed) {
   return out;
 }
 
+// Headings on the arsenal page
+const WW2_GROUPS = [
+  ['Tanks and armour', ['tank', 'stug', 'halftrack']],
+  ['Planes', ['fighter', 'twin', 'bomber']],
+  ['Ships and submarines', ['ship', 'sub']],
+  ['Guns', ['gun', 'mortar']],
+  ['Vehicles and trains', ['train', 'truck', 'jeep', 'moto', 'bike']],
+  ['Small arms and gear', ['mg', 'launcher', 'rifle', 'smg', 'pistol', 'helmet', 'jerrycan', 'box']],
+];
+
 // Silhouettes (64 × 32, filled with the text color)
 const wheels = (r, ...xs) => xs.map(x => `<circle cx="${x}" cy="${30 - r}" r="${r}"/>`).join('');
 const TRACKS = '<path fill-rule="evenodd" d="M9 19h46a5.5 5.5 0 0 1 0 11H9a5.5 5.5 0 0 1 0-11zM11 22a2.5 2.5 0 1 0 .01 0zM21 22a2.5 2.5 0 1 0 .01 0zM32 22a2.5 2.5 0 1 0 .01 0zM43 22a2.5 2.5 0 1 0 .01 0zM53 22a2.5 2.5 0 1 0 .01 0z"/>';

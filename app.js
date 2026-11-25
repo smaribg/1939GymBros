@@ -1,4 +1,4 @@
-/* global supabase, CONFIG, ww2Units, ww2Icon */
+/* global supabase, CONFIG, ww2Units, ww2Icon, WW2_GROUPS, WW2_ITEMS */
 const app = document.getElementById('app');
 const $ = sel => document.querySelector(sel);
 const PHOTO_BUCKET = 'exercise-photos';
@@ -427,6 +427,7 @@ const routes = [
   [/^members$/, membersView],
   [/^m\/([\w-]+)$/, memberView],
   [/^exercises$/, exercisesView],
+  [/^arsenal$/, arsenalView],
   [/^w\/([\w-]+)$/, workoutView],
   [/^w\/([\w-]+)\/pick$/, pickView],
   [/^w\/([\w-]+)\/(new|edit)\/([\w-]+)$/, logView],
@@ -515,6 +516,7 @@ async function home(mount) {
       <a class="btn block grow tile" href="#/members">${ICONS.people}Members (${members.length})</a>
       <a class="btn block grow tile" href="#/exercises">${ICONS.dumbbell}Exercises</a>
     </div>
+    <a class="btn block tile" href="#/arsenal">${ww2Icon('tank')}Arsenal</a>
     <h2>Past workouts</h2>
     ${months.length ? `<div class="months">${months.map(k => `
       <button class="month ${k === pastMonth ? 'on' : ''}" data-month="${k}">${monthName(k)}<span>${past.filter(w => monthOf(w) === k).length}</span></button>`).join('')}</div>` : ''}
@@ -774,6 +776,45 @@ async function memberView(mount, id) {
     check(await sb.from('members').update({ active: false }).eq('id', id));
     go('#/members');
   }));
+}
+
+// Every exercise done adds its item (the same one its workout shows for it) to the group's arsenal
+async function arsenalView(mount) {
+  const workouts = check(await sb.from('workouts')
+    .select('id, workout_exercises(exercises(*), entries(absent, sets))')
+    .order('started_at', { ascending: false }));
+  const items = new Map(); // name -> { name, icon, kg, count }
+  let exercises = 0;
+  for (const w of workouts) {
+    for (const we of w.workout_exercises) {
+      const kg = kgTotal(we.entries.flatMap(e => (e.absent ? [] : e.sets)), we.exercises);
+      const u = ww2Units(Math.round(kg), w.id)[0];
+      if (!u) continue;
+      exercises++;
+      if (!items.has(u.name)) items.set(u.name, { ...u, count: 0 });
+      items.get(u.name).count += u.count;
+    }
+  }
+  const all = [...items.values()].sort((a, b) => b.count - a.count || b.kg - a.kg);
+
+  mount(`
+    <a class="back" href="#/">${CHEVRON}Home</a>
+    <h1>Arsenal</h1>
+    <p class="sub">Each exercise you do adds the item its total weighs the most like</p>
+    ${statsHtml([
+      { icon: 'trophy', value: all.reduce((n, u) => n + u.count, 0), label: 'items lifted', tone: 'orange' },
+      { icon: 'plates', value: `${all.length}/${WW2_ITEMS.length}`, label: 'collected' },
+      { icon: 'dumbbell', value: exercises, label: `exercise${exercises === 1 ? '' : 's'} done` },
+    ])}
+    ${WW2_GROUPS.map(([title, icons]) => {
+      const group = all.filter(u => icons.includes(u.icon));
+      return group.length ? `
+        <h2>${title} · ${group.reduce((n, u) => n + u.count, 0)}</h2>
+        <div class="card">
+          ${group.map(u => `<div class="arsenal-row">${ww2Icon(u.icon)}<b>${u.count}×</b><span class="grow">${esc(u.name)}</span><span class="muted small">${u.kg.toLocaleString('en-GB')} kg</span></div>`).join('')}
+        </div>` : '';
+    }).join('') || '<p class="muted">Nothing lifted yet.</p>'}
+  `);
 }
 
 async function exercisesView(mount) {
