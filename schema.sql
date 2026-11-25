@@ -93,3 +93,8 @@ alter publication supabase_realtime add table workout_exercises, entries;
 -- ---------- Member order ----------
 -- The order picked during the workout's first set, shared by every phone
 alter table workouts add column member_order jsonb;
+
+-- ---------- One-handed exercises ----------
+-- The kg is logged for one hand, so totals count it double
+alter table exercises add column if not exists one_handed boolean not null default false;
+notify pgrst, 'reload schema';

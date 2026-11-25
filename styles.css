@@ -281,6 +281,11 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)
 .ex-photo { display: block; width: 100%; max-height: 280px; object-fit: cover; border-radius: 18px; background: var(--card); }
 .photo-block .on-photo { position: absolute; right: 10px; bottom: 10px; background: rgba(13, 14, 14, 0.75); backdrop-filter: blur(6px); }
 
+.photo-block .on-photo.left { right: auto; left: 10px; }
+/* One-handed exercise (total counts double): on = cream */
+.btn.hand[aria-pressed="true"] { background: var(--cream); border-color: var(--cream); color: var(--cream-ink); }
+.hand-tag { color: var(--kg); font-size: 13px; }
+
 .stepper { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 16px; }
 .stepper .btn { width: 44px; padding: 0; font-size: 22px; }
 .stepper b { min-width: 26px; text-align: center; font-size: 22px; font-weight: 600; }

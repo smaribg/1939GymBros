@@ -26,6 +26,9 @@ const act = fn => async e => {
   try { await fn(e); } catch (err) { console.error(err); alert(err.message || err); }
 };
 
+// Total kg of some sets. One-handed exercises are logged per hand, so they count double.
+const kgTotal = (sets, exercise) => sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0) * (exercise?.one_handed ? 2 : 1);
+const oneHandedTag = exercise => (exercise.one_handed ? '<span class="hand-tag">one-handed ×2</span>' : '');
 // "60kg × 10", or "10 reps" without weight
 const fmtKgReps = x => (x.weight != null && x.weight !== '' ? `${x.weight}kg × ${x.reps}` : `${x.reps} reps`);
 
@@ -329,6 +332,12 @@ async function resizeImage(file, max = 1280) {
     canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Could not process the photo'))), 'image/jpeg', 0.8));
 }
 
+async function toggleOneHanded(exercise) {
+  const one_handed = !exercise.one_handed;
+  check(await sb.from('exercises').update({ one_handed }).eq('id', exercise.id));
+  exercise.one_handed = one_handed;
+}
+
 async function uploadExercisePhoto(exercise, file) {
   const blob = await resizeImage(file);
   const path = `${exercise.id}/${Date.now()}.jpg`;
@@ -433,7 +442,7 @@ let pastMonth = null; // month picked on the home screen ("2026-10"), kept while
 async function home(mount) {
   const [workouts, members] = await Promise.all([
     sb.from('workouts')
-      .select('id, started_at, finished_at, workout_exercises(created_at, exercises(name), entries(absent, sets, members(name, created_at)))')
+      .select('id, started_at, finished_at, workout_exercises(created_at, exercises(*), entries(absent, sets, members(name, created_at)))')
       .order('started_at', { ascending: false })
       .limit(500)
       .then(check),
@@ -448,8 +457,11 @@ async function home(mount) {
   if (!months.includes(pastMonth)) pastMonth = months[0];
   const summary = w => [...w.workout_exercises].sort(byCreated).map(we => we.exercises.name).join(' · ') || 'No exercises';
   const totals = w => {
-    const sets = w.workout_exercises.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
-    return { sets: sets.length, kg: Math.round(sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0)) };
+    const setsOf = we => we.entries.flatMap(e => (e.absent ? [] : e.sets));
+    return {
+      sets: w.workout_exercises.flatMap(setsOf).length,
+      kg: Math.round(w.workout_exercises.reduce((sum, we) => sum + kgTotal(setsOf(we), we.exercises), 0)),
+    };
   };
   // Everyone who logged at least one set, in the usual member order
   const people = w => {
@@ -594,7 +606,7 @@ async function memberView(mount, id) {
   const [member, entries] = await Promise.all([
     sb.from('members').select('id, name, active').eq('id', id).maybeSingle().then(check),
     sb.from('entries')
-      .select('sets, workout_exercises(created_at, workout_id, exercises(id, name, photo_path))')
+      .select('sets, workout_exercises(created_at, workout_id, exercises(*))')
       .eq('member_id', id)
       .eq('absent', false)
       .then(check),
@@ -616,7 +628,7 @@ async function memberView(mount, id) {
   groups.sort((a, b) => b.sessions[b.sessions.length - 1].t - a.sessions[a.sessions.length - 1].t);
 
   const sets = entries.flatMap(e => e.sets);
-  const kg = sets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
+  const kg = entries.reduce((sum, e) => sum + kgTotal(e.sets, e.workout_exercises?.exercises), 0);
   const workouts = new Set(entries.filter(e => e.sets.length).map(e => e.workout_exercises?.workout_id));
   // Heaviest set, more reps breaking a tie
   const topSet = list => list.reduce((best, x) => (!best || beats(x, best) ? x : best), null);
@@ -654,6 +666,7 @@ async function memberView(mount, id) {
           ${exImg(g.exercise.photo_path)}
           <span class="grow col">
             <span class="ex-title">${esc(g.exercise.name)}</span>
+            ${oneHandedTag(g.exercise)}
             <span class="muted small">${g.sessions.length} time${g.sessions.length === 1 ? '' : 's'} · last ${fmtShort(lastT)}</span>
             <span class="best-line"><span class="best-label">Best:</span>${kgRepsPills(best)}</span>
           </span>
@@ -729,11 +742,11 @@ async function memberView(mount, id) {
 }
 
 async function exercisesView(mount) {
-  const exercises = check(await sb.from('exercises').select('id, name, photo_path').order('name'));
+  const exercises = check(await sb.from('exercises').select('*').order('name'));
   const v = mount(`
     <a class="back" href="#/">${CHEVRON}Home</a>
     <h1>Exercises</h1>
-    <p class="sub">Add exercises here so they're ready to pick in a workout</p>
+    <p class="sub">Add exercises here so they're ready to pick in a workout. ×2 marks a one-handed exercise: log the kg for one hand, the total counts double.</p>
     <form class="row nowrap" data-add style="margin-bottom:16px">
       <input class="grow" placeholder="New exercise name" autocomplete="off" required>
       <button class="btn primary">Add</button>
@@ -747,10 +760,19 @@ async function exercisesView(mount) {
             <input type="file" accept="image/*" hidden data-photo="${e.id}">
           </label>
           <input class="grow" value="${esc(e.name)}" data-rename="${e.id}" aria-label="Name">
+          <button class="btn small hand" data-hand="${e.id}" aria-label="One-handed" aria-pressed="${!!e.one_handed}">×2</button>
           <button class="btn small danger" data-remove="${e.id}">Delete</button>
         </div>`).join('') || '<p class="muted">No exercises yet.</p>'}
     </div>
   `);
+
+  v.querySelector('.list').addEventListener('click', act(async e => {
+    const btn = e.target.closest('[data-hand]');
+    if (!btn || !await requireAuth()) return;
+    const exercise = exercises.find(x => x.id === btn.dataset.hand);
+    await toggleOneHanded(exercise);
+    btn.setAttribute('aria-pressed', exercise.one_handed);
+  }));
 
   // Tap a thumbnail to take or choose a photo for that exercise
   v.querySelector('.list').addEventListener('change', act(async e => {
@@ -794,7 +816,7 @@ let openCards = new Set(), openCardsFor = null; // exercises expanded on the wor
 async function workoutView(mount, wid) {
   if (openCardsFor !== wid) { openCardsFor = wid; openCards = new Set(); }
   const w = check(await sb.from('workouts')
-    .select('id, started_at, finished_at, workout_exercises(id, created_at, exercises(name, photo_path), entries(absent, sets, members(name, created_at)))')
+    .select('id, started_at, finished_at, workout_exercises(id, created_at, exercises(*), entries(absent, sets, members(name, created_at)))')
     .eq('id', wid)
     .maybeSingle());
   if (!w) {
@@ -821,7 +843,7 @@ async function workoutView(mount, wid) {
     .filter(e => !e.absent && e.sets.length).map(e => e.members.name);
 
   const allSets = wes.flatMap(we => we.entries.flatMap(e => (e.absent ? [] : e.sets)));
-  const kg = allSets.reduce((sum, x) => sum + (x.weight || 0) * (x.reps || 0), 0);
+  const kg = wes.reduce((sum, we) => sum + kgTotal(we.entries.flatMap(e => (e.absent ? [] : e.sets)), we.exercises), 0);
   // Everyone who logged a set, in the usual member order
   const people = new Set(wes.flatMap(we => we.entries.filter(e => !e.absent && e.sets.length))
     .map(e => e.members).sort(byCreated).map(m => m.name));
@@ -844,6 +866,7 @@ async function workoutView(mount, wid) {
           ${exImg(we.exercises.photo_path)}
           <span class="grow col">
             <span class="ex-title">${esc(we.exercises.name)}</span>
+            ${oneHandedTag(we.exercises)}
             ${participants(we).length ? '' : '<span class="muted small">No sets yet</span>'}
           </span>
           <span class="check ${isDone(we) ? 'done' : ''}"></span>
@@ -1003,7 +1026,7 @@ async function logView(mount, wid, mode, id) {
 
   if (weId) {
     const we = check(await sb.from('workout_exercises')
-      .select('created_at, exercises(id, name, photo_path), entries(member_id, absent, sets)')
+      .select('created_at, exercises(*), entries(member_id, absent, sets)')
       .eq('id', weId)
       .single());
     exercise = we.exercises;
@@ -1019,7 +1042,7 @@ async function logView(mount, wid, mode, id) {
       location.replace(`#/w/${wid}/edit/${found.id}`);
       return;
     }
-    exercise = check(await sb.from('exercises').select('id, name, photo_path').eq('id', id).single());
+    exercise = check(await sb.from('exercises').select('*').eq('id', id).single());
   }
 
   const [allMembers, last, siblings, workout] = await Promise.all([
@@ -1298,8 +1321,14 @@ async function logView(mount, wid, mode, id) {
       ${exercise.photo_path ? `<img class="ex-photo" src="${esc(photoUrl(exercise.photo_path))}" alt="">` : ''}
       <label class="btn small ${exercise.photo_path ? 'on-photo' : ''}">${busy ? 'Uploading…' : exercise.photo_path ? '📷 Change' : '📷 Add photo'}
         <input type="file" accept="image/*" capture="environment" hidden ${busy ? 'disabled' : ''}>
-      </label>`;
+      </label>
+      <button class="btn small hand ${exercise.photo_path ? 'on-photo left' : ''}" data-hand aria-pressed="${!!exercise.one_handed}">One-handed ×2</button>`;
   }
+  photoEl.addEventListener('click', act(async e => {
+    if (!e.target.closest('[data-hand]') || !await requireAuth()) return;
+    await toggleOneHanded(exercise);
+    photoEl.querySelector('[data-hand]').setAttribute('aria-pressed', exercise.one_handed);
+  }));
   photoEl.addEventListener('change', act(async e => {
     const file = e.target.files?.[0];
     if (!file || !await requireAuth()) return;
